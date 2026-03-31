@@ -221,7 +221,7 @@ const INITIAL_STATE = {
   daysAR: 45,
   daysInventory: 20,
   daysAP: 30,
-  capex: [8800, 3520, 1760, 880, 440],
+  capex: [0, 0, 0, 0, 0],
   financingMode: 'equity',
   capitalNeeded: 4000,
   equityDilution: 0.117,
@@ -2086,6 +2086,39 @@ function Module6({ state, setState }) {
             </tbody>
           </table>
         </div>
+        {/* Capex editable per year */}
+        <div className="mt-4 pt-4 border-t border-ash">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-condensed uppercase text-ink-60 tracking-wider">Capex por año ($K USD) — editá según tu plan de inversión</p>
+            <span className="text-[10px] font-condensed text-ink-30">
+              (Sh!) es asset-light: sin fábrica propia → default $0. Agregá capex si planificás activos fijos.
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-2">
+            {FORECAST_YEARS.map((y, i) => (
+              <div key={y} className="text-center">
+                <p className="text-[10px] font-condensed text-ink-40 mb-1">{y}</p>
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={state.capex[i] || 0}
+                  onChange={e => {
+                    const newCapex = [...state.capex];
+                    newCapex[i] = Math.max(0, parseFloat(e.target.value) || 0);
+                    setState(s => ({ ...s, capex: newCapex }));
+                  }}
+                  className="w-full text-center text-xs font-condensed border border-ash bg-white px-1 py-1 text-ink focus:outline-none focus:border-gold"
+                  style={{ borderRadius: 0 }}
+                />
+                <p className="text-[10px] font-condensed text-ink-20 mt-0.5">
+                  {state.capex[i] >= 1000 ? `$${(state.capex[i]/1000).toFixed(1)}M` : state.capex[i] > 0 ? `$${state.capex[i]}K` : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-3 pt-3 border-t border-ash text-xs font-condensed text-ink-40 space-y-1">
           <p>🔴 <strong className="text-ink-60">ΔCapital de trabajo</strong> = la plata que inmovilizás cada año en inventario y crédito a clientes por crecer. A más revenue, más grande el pozo antes de que el negocio sea autosuficiente.</p>
           <p>💡 Bajá DSO (cobrar antes) o subí DPO (pagar después) para reducir la necesidad sin levantar equity ni deuda. Tocá los sliders abajo.</p>
