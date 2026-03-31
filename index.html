@@ -148,6 +148,35 @@ const CURRENCY_INFO = {
   IT: { symbol: 'EUR', name: 'Euro',              defaultFX: 0.92,  defaultDeval: 0.02 },
 };
 
+// ─────────────────────────────────────────────
+// ACTUALS 2025 — EECC Legalizados ENERGY GIVER S.A.
+// Ejercicio cerrado 31/12/2025 · Tipo de cambio: ARS 1,200/USD
+// Todos los valores en $K USD (÷ 1,200 ÷ 1,000)
+// ─────────────────────────────────────────────
+const ACTUALS_2025 = {
+  fxUsed:           1200,
+  revenue:           872.3,  // ARS 1,046,701,211 ÷ 1,200,000
+  cogs:              672.7,  // ARS   807,180,483 ÷ 1,200,000
+  grossProfit:       199.6,  // ARS   239,520,728 ÷ 1,200,000
+  sga:               487.7,  // Adm 224.3 + Comercial 263.5 (ARS 585,244,845 ÷ 1,200,000)
+  ebitda:           -288.1,  // grossProfit − sga
+  depreciation:        0,
+  ebit:             -288.1,
+  tax:                 0,    // pérdida operativa → sin impuesto corriente
+  nopat:            -288.1,
+  workingCapital:    216.6,  // AR 76.1 + Inv 204.7 − AP 64.2
+  deltaWC:           216.6,  // Δ desde cero (primer ejercicio pleno)
+  capex:               0,
+  fcf:              null,    // financiado con aportes irrevocables (ARS 574.8M)
+  debtService:         0,
+  // Balance sheet items ($K USD)
+  cash:              16.7,   // ARS  20,034,600 ÷ 1,200,000
+  ar:                76.1,   // ARS  91,369,801 ÷ 1,200,000
+  inventory:        204.7,   // ARS 245,667,150 ÷ 1,200,000
+  ap:                64.2,   // ARS  76,979,629 ÷ 1,200,000
+  isActual:          true,
+};
+
 const INITIAL_STATE = {
   productType: 'energy_drink',
   productName: 'Sh!',
@@ -454,6 +483,37 @@ function buildFinancials(state) {
       debtService: calcDebtService(state, year),
     };
   }
+
+  // ── Override 2025 with audited actuals (EECC legalizados) ────────────────
+  rows[2025] = {
+    ...rows[2025],
+    revenue:        ACTUALS_2025.revenue,
+    cogs:           ACTUALS_2025.cogs,
+    grossProfit:    ACTUALS_2025.grossProfit,
+    sga:            ACTUALS_2025.sga,
+    ebitda:         ACTUALS_2025.ebitda,
+    depreciation:   0,
+    ebit:           ACTUALS_2025.ebit,
+    tax:            0,
+    nopat:          ACTUALS_2025.nopat,
+    workingCapital: ACTUALS_2025.workingCapital,
+    deltaWC:        0,
+    capex:          0,
+    fcf:            null,
+    debtService:    0,
+    isActual:       true,
+  };
+
+  // ── Fix 2026 ΔWC: base must be actual 2025 WC, not model 2025 WC ────────
+  if (rows[2026]) {
+    const dWC2026 = rows[2026].workingCapital - ACTUALS_2025.workingCapital;
+    rows[2026] = {
+      ...rows[2026],
+      deltaWC: dWC2026,
+      fcf: rows[2026].ebitda - rows[2026].tax - rows[2026].capex - dWC2026,
+    };
+  }
+
   return rows;
 }
 
@@ -635,7 +695,7 @@ function Module5({ state, setState }) {
             <thead>
               <tr>
                 <th className="text-left text-ink-60 pb-1 font-normal">Línea</th>
-                {YEARS.map(y => <th key={y} className="text-right text-ink-60 pb-1 font-normal">{y}</th>)}
+                {YEARS.map(y => <th key={y} className={`text-right pb-1 font-normal ${y === 2025 ? 'text-gold' : 'text-ink-60'}`}>{y === 2025 ? '2025A' : y}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -1806,12 +1866,16 @@ function Module6({ state, setState }) {
     return { year: y, 'Cuentas a Cobrar': Math.round(ar), 'Inventario': Math.round(inv), 'Cuentas a Pagar': -Math.round(ap), 'WC Neto': Math.round(nwc), deltaWC: Math.round(deltaWC) };
   });
 
-  // Cumulative FCF (cash position)
-  let cumFCF = 0;
+  // Cumulative FCF — starts from actual 2025 ending cash (EECC auditados)
+  let cumFCF = ACTUALS_2025.cash; // $16.7K USD real al 31/12/2025
   const cashData = YEARS.map(y => {
-    const fcf = fin[y]?.fcf || 0;
-    cumFCF += fcf;
-    return { year: y, 'FCF Anual': Math.round(fcf), 'Caja Acumulada': Math.round(cumFCF) };
+    const fcf = fin[y]?.fcf ?? 0;
+    if (y > 2025) cumFCF += fcf;
+    return {
+      year: y,
+      'FCF Anual': y === 2025 ? 0 : Math.round(fcf),
+      'Caja Acumulada': Math.round(cumFCF),
+    };
   });
 
   // Peak cash need = worst cumulative FCF
@@ -2203,12 +2267,19 @@ function ModulePL({ state, setState }) {
 
         {/* RIGHT: P&L table by year */}
         <div className="lg:col-span-3 overflow-x-auto">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-condensed uppercase tracking-wider text-ink-40">P&L Consolidado</span>
+            <span className="inline-flex items-center gap-1 bg-gold/10 border border-gold/30 text-gold text-[10px] font-condensed px-2 py-0.5 rounded-sm">
+              <span className="font-bold">2025A</span>
+              <span className="text-ink-40">= Balance auditado · EECC Legalizados · ARS ÷ 1.200</span>
+            </span>
+          </div>
           <table className="w-full text-xs font-condensed">
             <thead>
               <tr className="border-b border-ash">
                 <th className="text-left text-ink-40 py-2 pr-3 font-normal uppercase tracking-wider w-40">Línea</th>
                 {YEARS.map(y => (
-                  <th key={y} className="text-right text-ink-40 py-2 px-2 font-normal">{y}</th>
+                  <th key={y} className={`text-right py-2 px-2 font-normal ${y === 2025 ? 'text-gold font-bold' : 'text-ink-40'}`}>{y === 2025 ? '2025A' : y}</th>
                 ))}
               </tr>
             </thead>
