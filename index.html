@@ -64,12 +64,35 @@ const {
 // INITIAL STATE
 // ─────────────────────────────────────────────
 const PRODUCT_TYPES = [
-  { id: 'energy_drink',       label: 'Energy Drink',        emoji: '⚡' },
-  { id: 'sparkling_water',    label: 'Sparkling Water',     emoji: '💧' },
-  { id: 'functional_bev',     label: 'Functional Beverage', emoji: '🧪' },
-  { id: 'protein_drink',      label: 'Protein Drink',       emoji: '💪' },
-  { id: 'custom',             label: 'Personalizado',       emoji: '⚙️' },
+  { id: 'energy_drink',    label: 'Energy Drink',        emoji: '⚡' },
+  { id: 'sparkling_water', label: 'Sparkling Water',     emoji: '💧' },
+  { id: 'functional_bev',  label: 'Functional Beverage', emoji: '🧪' },
+  { id: 'protein_drink',   label: 'Protein Drink',       emoji: '💪' },
+  { id: 'custom',          label: 'Personalizado',       emoji: '⚙️' },
 ];
+
+// País → datos de mercado por defecto (TAM en millones de unidades/año)
+const COUNTRIES = [
+  { code: 'AR', name: 'Argentina',    flag: '🇦🇷', color: '#F7AF1C', tamM: 500,  price: 1.10, cogs: 0.68 },
+  { code: 'BR', name: 'Brasil',       flag: '🇧🇷', color: '#22c55e', tamM: 3000, price: 1.30, cogs: 0.72 },
+  { code: 'MX', name: 'México',       flag: '🇲🇽', color: '#ef4444', tamM: 1500, price: 1.20, cogs: 0.70 },
+  { code: 'CL', name: 'Chile',        flag: '🇨🇱', color: '#60a5fa', tamM: 250,  price: 1.40, cogs: 0.72 },
+  { code: 'CO', name: 'Colombia',     flag: '🇨🇴', color: '#f59e0b', tamM: 600,  price: 1.15, cogs: 0.70 },
+  { code: 'PE', name: 'Perú',         flag: '🇵🇪', color: '#f97316', tamM: 400,  price: 1.10, cogs: 0.68 },
+  { code: 'UY', name: 'Uruguay',      flag: '🇺🇾', color: '#a78bfa', tamM: 50,   price: 1.50, cogs: 0.72 },
+  { code: 'PY', name: 'Paraguay',     flag: '🇵🇾', color: '#34d399', tamM: 80,   price: 0.95, cogs: 0.65 },
+  { code: 'BO', name: 'Bolivia',      flag: '🇧🇴', color: '#fb923c', tamM: 120,  price: 0.90, cogs: 0.65 },
+  { code: 'EC', name: 'Ecuador',      flag: '🇪🇨', color: '#4ade80', tamM: 200,  price: 1.05, cogs: 0.68 },
+  { code: 'VE', name: 'Venezuela',    flag: '🇻🇪', color: '#f472b6', tamM: 300,  price: 0.85, cogs: 0.63 },
+  { code: 'US', name: 'USA',          flag: '🇺🇸', color: '#38bdf8', tamM: 5000, price: 2.50, cogs: 0.85 },
+  { code: 'CA', name: 'Canadá',       flag: '🇨🇦', color: '#fb7185', tamM: 600,  price: 2.20, cogs: 0.80 },
+  { code: 'ES', name: 'España',       flag: '🇪🇸', color: '#facc15', tamM: 400,  price: 1.80, cogs: 0.75 },
+  { code: 'UK', name: 'Reino Unido',  flag: '🇬🇧', color: '#818cf8', tamM: 800,  price: 2.00, cogs: 0.78 },
+  { code: 'DE', name: 'Alemania',     flag: '🇩🇪', color: '#94a3b8', tamM: 700,  price: 1.90, cogs: 0.76 },
+  { code: 'FR', name: 'Francia',      flag: '🇫🇷', color: '#c084fc', tamM: 600,  price: 1.85, cogs: 0.75 },
+  { code: 'IT', name: 'Italia',       flag: '🇮🇹', color: '#86efac', tamM: 500,  price: 1.75, cogs: 0.74 },
+];
+const COUNTRY_MAP = Object.fromEntries(COUNTRIES.map(c => [c.code, c]));
 
 const INITIAL_STATE = {
   productType: 'energy_drink',
@@ -79,29 +102,13 @@ const INITIAL_STATE = {
   arFXDevaluation: 0.30,
   latamInflation: 0.08,
   usInflation: 0.03,
-  // Markets: volume = TAM × penetration%
-  // Argentina default penetration calibrated to match Excel base case
+  // Markets keyed by country code — add/remove dynamically
   markets: {
-    argentina: {
-      active: true, openYear: 2025, country: 'Argentina', flag: '🇦🇷',
-      tamUnits: 500000000,          // TAM: 500M units/year
-      penetration: [0.18, 2.21, 10.98, 30.06, 58.60, 80.14], // % por año 2025–2030
-      priceUSD: 1.10,
-      cogsUSD: 0.68,
-    },
-    latam: {
-      active: false, openYear: 2027, country: 'LATAM', flag: '🌎',
-      tamUnits: 2000000000,
-      penetration: [0, 0, 0.25, 0.50, 1.00, 2.00],
-      priceUSD: 1.20,
-      cogsUSD: 0.70,
-    },
-    usa: {
-      active: false, openYear: 2029, country: 'USA', flag: '🇺🇸',
-      tamUnits: 5000000000,
-      penetration: [0, 0, 0, 0, 0.04, 0.08],
-      priceUSD: 2.50,
-      cogsUSD: 0.85,
+    AR: {
+      active: true, openYear: 2025, code: 'AR', country: 'Argentina', flag: '🇦🇷', color: '#F7AF1C',
+      tamUnits: 500000000,
+      penetration: [0.18, 2.21, 10.98, 30.06, 58.60, 80.14],
+      priceUSD: 1.10, cogsUSD: 0.68,
     },
   },
   cogsPerUnit: 0.68,
@@ -671,7 +678,35 @@ function Module5({ state, setState }) {
 // ─────────────────────────────────────────────
 function Module1({ state, setState }) {
   const mult = state.scenarioMultipliers[state.scenario];
-  const MKT_COLORS = { argentina: GOLD, latam: BLUE, usa: GREEN };
+  const [selectedCode, setSelectedCode] = React.useState('');
+
+  const addMarket = () => {
+    if (!selectedCode || state.markets[selectedCode]) return;
+    const c = COUNTRY_MAP[selectedCode];
+    if (!c) return;
+    setState(s => ({
+      ...s,
+      markets: {
+        ...s.markets,
+        [c.code]: {
+          active: true, openYear: 2026, code: c.code, country: c.name, flag: c.flag, color: c.color,
+          tamUnits: c.tamM * 1000000,
+          penetration: [0, 0.10, 0.50, 1.50, 3.00, 6.00],
+          priceUSD: c.price, cogsUSD: c.cogs,
+        }
+      }
+    }));
+    setSelectedCode('');
+  };
+
+  const removeMarket = (code) => {
+    if (Object.keys(state.markets).length <= 1) return;
+    setState(s => {
+      const updated = { ...s.markets };
+      delete updated[code];
+      return { ...s, markets: updated };
+    });
+  };
 
   const setMkt = (key, field, val) => setState(s => ({
     ...s, markets: { ...s.markets, [key]: { ...s.markets[key], [field]: val } }
@@ -733,36 +768,72 @@ function Module1({ state, setState }) {
         </div>
       </div>
 
+      {/* Country selector */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Mercados activos — agregá países</p>
+        <div className="flex gap-2 items-center flex-wrap">
+          <select
+            value={selectedCode}
+            onChange={e => setSelectedCode(e.target.value)}
+            className="bg-black border border-white-20 text-white text-sm font-condensed px-3 py-2 min-w-48"
+          >
+            <option value="">— Seleccioná un país —</option>
+            {COUNTRIES.filter(c => !state.markets[c.code]).map(c => (
+              <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={addMarket}
+            disabled={!selectedCode}
+            className={`px-4 py-2 text-xs font-condensed font-bold tracking-wider ${selectedCode ? 'bg-gold text-black' : 'bg-white-10 text-white-20 cursor-not-allowed'}`}>
+            + Agregar mercado
+          </button>
+          <span className="text-xs text-white-20 font-condensed ml-2">
+            {Object.keys(state.markets).length} mercado{Object.keys(state.markets).length !== 1 ? 's' : ''} activo{Object.keys(state.markets).length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+
       {/* Market cards with TAM + penetration + price/cogs */}
       <div className="space-y-4">
         {Object.entries(state.markets).map(([key, mkt]) => {
-          const color = MKT_COLORS[key];
+          const color = mkt.color || GOLD;
           const yearIdx2030 = 5;
           const vol2030 = calcMarketVolume(mkt, yearIdx2030, mult);
           const rev2030 = (vol2030 / 1000) * mkt.priceUSD;
           return (
-            <div key={key} className={`border ${mkt.active ? 'border-gold-border' : 'border-white-10'} bg-white-5`}>
+            <div key={key} className="border bg-white-5" style={{ borderColor: mkt.active ? color + '66' : 'rgba(255,255,255,0.1)' }}>
               {/* Market header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-white-10">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">{mkt.flag}</span>
-                  <span className="font-condensed font-bold text-base">{mkt.country}</span>
-                  {mkt.active && (
-                    <span className="text-xs font-condensed text-white-60">
-                      Rev 2030: <span className="text-gold font-bold">{fmt(rev2030 * 1000)}</span>
-                    </span>
-                  )}
+                  <span className="text-2xl">{mkt.flag}</span>
+                  <div>
+                    <span className="font-condensed font-bold text-base" style={{ color }}>{mkt.country}</span>
+                    {mkt.active && (
+                      <span className="text-xs font-condensed text-white-60 ml-3">
+                        Rev 2030: <span className="font-bold" style={{ color }}>{fmt(rev2030 * 1000)}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className="text-xs font-condensed text-white-60">Apertura:</span>
                   <input type="number" value={mkt.openYear} min={2025} max={2032}
                     onChange={e => setMkt(key, 'openYear', parseInt(e.target.value))}
                     className="bg-white-10 text-white text-center w-14 px-1 text-xs font-condensed" />
                   <button
                     onClick={() => setMkt(key, 'active', !mkt.active)}
-                    className={`px-3 py-1 text-xs font-condensed font-bold ${mkt.active ? 'bg-gold text-black' : 'bg-white-10 text-white-60'}`}>
+                    className={`px-3 py-1 text-xs font-condensed font-bold ${mkt.active ? 'text-black' : 'bg-white-10 text-white-60'}`}
+                    style={mkt.active ? { background: color } : {}}>
                     {mkt.active ? 'ON' : 'OFF'}
                   </button>
+                  {Object.keys(state.markets).length > 1 && (
+                    <button
+                      onClick={() => removeMarket(key)}
+                      className="px-2 py-1 text-xs font-condensed text-white-20 hover:text-red-400 border border-white-10 hover:border-red-400">
+                      ×
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -909,7 +980,7 @@ function Module1({ state, setState }) {
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
             {Object.entries(state.markets).map(([key, mkt]) => (
-              mkt.active && <Bar key={key} dataKey={mkt.country} stackId="a" fill={MKT_COLORS[key]} />
+              mkt.active && <Bar key={key} dataKey={mkt.country} stackId="a" fill={mkt.color || GOLD} />
             ))}
           </BarChart>
         </ResponsiveContainer>
