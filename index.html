@@ -232,6 +232,7 @@ const INITIAL_STATE = {
   wacc: 0.101,
   terminalGrowthRate: 0.07,
   terminalEBITDAMultiple: 15,
+  revenueMultiple: 3.0,
   taxRate: 0.30,
   scenario: 'base',
   scenarioMultipliers: { best: 1.20, base: 1.00, worst: 0.80 },
@@ -630,32 +631,78 @@ function Module5({ state, setState }) {
 
   return (
     <div className="p-4 space-y-6">
-      {/* Header answer */}
-      <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-1">Valuación base case hoy</p>
-        <div className="flex gap-8 flex-wrap">
-          <div>
-            <p className="text-xs text-ink-60 font-condensed uppercase">EV (Perpetuity)</p>
-            <p className="text-4xl font-condensed font-bold text-gold">{fmt(dcf.evPerpetual * 1000)}</p>
+      {/* Header — three valuation methods side by side */}
+      {(() => {
+        const rev2030   = fin[2030]?.revenue  || 0;
+        const ebitda2030 = fin[2030]?.ebitda  || 0;
+        const evRevMult  = rev2030   * state.revenueMultiple;
+        const evEBMult   = ebitda2030 > 0 ? ebitda2030 * state.terminalEBITDAMultiple : null;
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* Method 1: DCF */}
+            <div className="border border-gold bg-gold-dim p-4">
+              <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-3">Método 1 — DCF</p>
+              <p className="text-xs text-ink-40 font-condensed mb-2">Valor presente de FCFs proyectados + valor terminal</p>
+              <p className="text-3xl font-condensed font-bold text-gold mb-1">{fmt(dcf.evPerpetual * 1000)}</p>
+              <p className="text-xs text-ink-40 font-condensed">Perpetuity · WACC {fmtPct(state.wacc)} · TGR {fmtPct(state.terminalGrowthRate)}</p>
+              <div className="mt-3 space-y-2">
+                <Slider label="WACC" value={state.wacc} min={0.06} max={0.20} step={0.005}
+                  onChange={v => setState(s => ({ ...s, wacc: v }))}
+                  format={v => fmtPct(v)} />
+                <Slider label="Terminal Growth Rate" value={state.terminalGrowthRate} min={0.02} max={0.12} step={0.005}
+                  onChange={v => setState(s => ({ ...s, terminalGrowthRate: v }))}
+                  format={v => fmtPct(v)} />
+              </div>
+            </div>
+
+            {/* Method 2: Revenue Multiple */}
+            <div className="border border-ash bg-ink-5 p-4">
+              <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-3">Método 2 — Múltiplo de Revenue</p>
+              <p className="text-xs text-ink-40 font-condensed mb-2">
+                Revenue 2030 <span className="text-gold font-bold">{fmt(rev2030 * 1000)}</span> × múltiplo elegido
+              </p>
+              <p className="text-3xl font-condensed font-bold text-ink mb-1">{fmt(evRevMult * 1000)}</p>
+              <p className="text-xs text-ink-40 font-condensed">{state.revenueMultiple}x Revenue · típico SaaS 3–8x, CPG 1–3x</p>
+              <div className="mt-3">
+                <Slider label="EV / Revenue múltiplo" value={state.revenueMultiple} min={0.5} max={10} step={0.5}
+                  onChange={v => setState(s => ({ ...s, revenueMultiple: v }))}
+                  format={v => `${v.toFixed(1)}x`} />
+              </div>
+              <div className="mt-2 pt-2 border-t border-ash text-xs font-condensed text-ink-30 space-y-0.5">
+                <p>0.5–1x → commodity / bajo margen</p>
+                <p>2–4x → CPG / bebidas premium</p>
+                <p>5–8x → growth + alta rentabilidad</p>
+              </div>
+            </div>
+
+            {/* Method 3: EBITDA Multiple */}
+            <div className="border border-ash bg-ink-5 p-4">
+              <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-3">Método 3 — Múltiplo de EBITDA</p>
+              <p className="text-xs text-ink-40 font-condensed mb-2">
+                EBITDA 2030 <span className={`font-bold ${ebitda2030 >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{ebitda2030 < 0 ? `(${fmt(Math.abs(ebitda2030)*1000)})` : fmt(ebitda2030*1000)}</span> × múltiplo elegido
+              </p>
+              {evEBMult !== null ? (
+                <p className="text-3xl font-condensed font-bold text-ink mb-1">{fmt(evEBMult * 1000)}</p>
+              ) : (
+                <p className="text-3xl font-condensed font-bold text-red-600 mb-1">EBITDA negativo</p>
+              )}
+              <p className="text-xs text-ink-40 font-condensed">{state.terminalEBITDAMultiple}x EBITDA · típico CPG 8–15x</p>
+              <div className="mt-3">
+                <Slider label="EV / EBITDA múltiplo" value={state.terminalEBITDAMultiple} min={4} max={30} step={0.5}
+                  onChange={v => setState(s => ({ ...s, terminalEBITDAMultiple: v }))}
+                  format={v => `${v}x`} />
+              </div>
+              <div className="mt-2 pt-2 border-t border-ash text-xs font-condensed text-ink-30 space-y-0.5">
+                <p>4–8x → empresa madura / bajo crecimiento</p>
+                <p>8–15x → CPG / consumo masivo</p>
+                <p>15–25x → high-growth / premium</p>
+              </div>
+            </div>
+
           </div>
-          <div>
-            <p className="text-xs text-ink-60 font-condensed uppercase">EV (Exit Multiple)</p>
-            <p className="text-4xl font-condensed font-bold text-ink">{fmt(dcf.evMultiple * 1000)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-ink-60 font-condensed uppercase">EV / Revenue 2030</p>
-            <p className="text-4xl font-condensed font-bold text-ink">
-              {fin[2030]?.revenue > 0 ? `${((dcf.evPerpetual) / fin[2030].revenue).toFixed(1)}x` : '—'}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-ink-60 font-condensed uppercase">EV / EBITDA 2030</p>
-            <p className="text-4xl font-condensed font-bold text-ink">
-              {fin[2030]?.ebitda > 0 ? `${((dcf.evPerpetual) / fin[2030].ebitda).toFixed(1)}x` : '—'}
-            </p>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Scenario comparison */}
       <div className="grid grid-cols-3 gap-2">
@@ -670,26 +717,17 @@ function Module5({ state, setState }) {
         ))}
       </div>
 
-      {/* DCF inputs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Income Statement + Tax input */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="border border-ash bg-ink-5 p-4">
-          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">DCF Inputs</p>
-          <Slider label="WACC" value={state.wacc} min={0.06} max={0.20} step={0.001}
-            onChange={v => setState(s => ({ ...s, wacc: v }))}
-            format={v => fmtPct(v)} />
-          <Slider label="Terminal Growth Rate" value={state.terminalGrowthRate} min={0.02} max={0.12} step={0.005}
-            onChange={v => setState(s => ({ ...s, terminalGrowthRate: v }))}
-            format={v => fmtPct(v)} />
-          <Slider label="Exit EBITDA Multiple" value={state.terminalEBITDAMultiple} min={5} max={30} step={0.5}
-            onChange={v => setState(s => ({ ...s, terminalEBITDAMultiple: v }))}
-            format={v => `${v}x`} />
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Supuestos globales</p>
           <Slider label="Tax Rate" value={state.taxRate} min={0.10} max={0.45} step={0.01}
             onChange={v => setState(s => ({ ...s, taxRate: v }))}
             format={v => fmtPct(v)} />
         </div>
 
         {/* P&L summary */}
-        <div className="md:col-span-2 border border-ash bg-ink-5 p-4 overflow-x-auto">
+        <div className="md:col-span-3 border border-ash bg-ink-5 p-4 overflow-x-auto">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Income Statement</p>
           <table className="w-full text-xs font-condensed">
             <thead>
@@ -2364,7 +2402,7 @@ function ModulePL({ state, setState }) {
             <span className="text-xs font-condensed uppercase tracking-wider text-ink-40">P&L Consolidado</span>
             <span className="inline-flex items-center gap-1 bg-gold/10 border border-gold/30 text-gold text-[10px] font-condensed px-2 py-0.5 rounded-sm">
               <span className="font-bold">2025A</span>
-              <span className="text-ink-40">= Balance auditado · EECC Legalizados · ARS ÷ 1.200</span>
+              <span className="text-ink-40">= Balance auditado · EECC Legalizados</span>
             </span>
           </div>
           <table className="w-full text-xs font-condensed">
