@@ -2330,17 +2330,27 @@ function ModulePL({ state, setState }) {
                 })}
               </tr>
 
-              {/* Each OpEx line */}
+              {/* OpEx — lump sum (2025A real, 2026+ total proyectado) */}
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-red-600 font-medium">OpEx</td>
+                {YEARS.map(y => (
+                  <td key={y} className="text-right px-2 py-1 text-red-600">
+                    ({fmt((y === 2025 ? ACTUALS_2025.sga : fin[y]?.sga || 0) * 1000)})
+                  </td>
+                ))}
+              </tr>
+
+              {/* OpEx breakdown — solo años proyectados, 2025 = — */}
               {state.expenseLines.map(line => (
                 <tr key={line.id} className="border-b border-ash">
-                  <td className="py-1 pr-3 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 inline-block" style={{ background: line.color }} />
-                    <span className="text-ink-60">{line.label}</span>
+                  <td className="py-1 pr-3 flex items-center gap-1.5 pl-3">
+                    <span className="w-1.5 h-1.5 inline-block flex-shrink-0" style={{ background: line.color }} />
+                    <span className="text-ink-40">{line.label}</span>
                     <span className="text-ink-20">({(line.pct*100).toFixed(1)}%)</span>
                   </td>
                   {YEARS.map(y => (
-                    <td key={y} className="text-right px-2 py-1 text-ink-40">
-                      ({fmt((fin[y]?.revenue||0) * line.pct * 1000)})
+                    <td key={y} className="text-right px-2 py-1 text-ink-30">
+                      {y === 2025 ? <span className="text-ink-20">—</span> : `(${fmt((fin[y]?.revenue||0) * line.pct * 1000)})`}
                     </td>
                   ))}
                 </tr>
