@@ -63,16 +63,46 @@ const {
 // ─────────────────────────────────────────────
 // INITIAL STATE
 // ─────────────────────────────────────────────
+const PRODUCT_TYPES = [
+  { id: 'energy_drink',       label: 'Energy Drink',        emoji: '⚡' },
+  { id: 'sparkling_water',    label: 'Sparkling Water',     emoji: '💧' },
+  { id: 'functional_bev',     label: 'Functional Beverage', emoji: '🧪' },
+  { id: 'protein_drink',      label: 'Protein Drink',       emoji: '💪' },
+  { id: 'custom',             label: 'Personalizado',       emoji: '⚙️' },
+];
+
 const INITIAL_STATE = {
+  productType: 'energy_drink',
+  productName: 'Sh!',
   arInflation: 0.45,
   arFX: 1000,
   arFXDevaluation: 0.30,
   latamInflation: 0.08,
   usInflation: 0.03,
+  // Markets: volume = TAM × penetration%
+  // Argentina default penetration calibrated to match Excel base case
   markets: {
-    argentina:  { active: true,  openYear: 2025, volumeGrowth: [11.4, 4.0, 1.7, 0.9, 0.4],  priceUSD: 1.10 },
-    latam:      { active: false, openYear: 2027, volumeGrowth: [8.0, 6.0, 4.0, 3.0, 2.0],    priceUSD: 1.20 },
-    usa:        { active: false, openYear: 2029, volumeGrowth: [5.0, 4.0, 3.0, 2.0, 1.5],    priceUSD: 2.50 },
+    argentina: {
+      active: true, openYear: 2025, country: 'Argentina', flag: '🇦🇷',
+      tamUnits: 500000000,          // TAM: 500M units/year
+      penetration: [0.18, 2.21, 10.98, 30.06, 58.60, 80.14], // % por año 2025–2030
+      priceUSD: 1.10,
+      cogsUSD: 0.68,
+    },
+    latam: {
+      active: false, openYear: 2027, country: 'LATAM', flag: '🌎',
+      tamUnits: 2000000000,
+      penetration: [0, 0, 0.25, 0.50, 1.00, 2.00],
+      priceUSD: 1.20,
+      cogsUSD: 0.70,
+    },
+    usa: {
+      active: false, openYear: 2029, country: 'USA', flag: '🇺🇸',
+      tamUnits: 5000000000,
+      penetration: [0, 0, 0, 0, 0.04, 0.08],
+      priceUSD: 2.50,
+      cogsUSD: 0.85,
+    },
   },
   cogsPerUnit: 0.68,
   sgaPercent: 0.395,
@@ -116,161 +146,50 @@ const MUTED = 'rgba(255,255,255,0.4)';
 // MODEL FUNCTIONS
 // ─────────────────────────────────────────────
 
-// Base volume by year from Excel model (units, annual) — Argentina base case
-const BASE_VOLUME = {
-  2025: 894174,
-  2026: 11058400,
-  2027: 54916536,
-  2028: 150300365,
-  2029: 292975161,
-  2030: 400710404,
-};
-
-// COGS/unit trajectory from Excel (inflation-adjusted over time)
-const BASE_COGS_UNIT = {
-  2025: 1.10, // façon price starts high
-  2026: 0.676,
-  2027: 0.655,
-  2028: 0.635,
-  2029: 0.615,
-  2030: 0.605,
-};
-
 function calcFXRate(state, year) {
   const yearsOut = year - 2025;
   return state.arFX * Math.pow(1 + state.arFXDevaluation, yearsOut);
 }
 
+// Core: TAM × penetration% → units
+function calcMarketVolume(mkt, yearIdx, mult) {
+  const idx = Math.min(yearIdx, (mkt.penetration || []).length - 1);
+  const basePct = (mkt.penetration[idx] || 0) / 100;
+  return mkt.tamUnits * Math.min(basePct * mult, 0.99);
+}
+
 function calcVolume(state, year) {
   const mult = state.scenarioMultipliers[state.scenario];
+  const yearIdx = year - 2025;
   let vol = 0;
-
-  // Argentina
-  if (state.markets.argentina.active && year >= state.markets.argentina.openYear) {
-    const yearIdx = year - 2025;
-    let base = BASE_VOLUME[year] || 0;
-    // Apply scenario multiplier to growth (not absolute)
-    if (year > 2025) {
-      const growthRate = state.markets.argentina.volumeGrowth[Math.min(yearIdx - 1, 4)] / 100;
-      const prevBase = BASE_VOLUME[year - 1] || 0;
-      const growth = prevBase * growthRate;
-      base = prevBase + growth * mult;
-    }
-    vol += base;
+  for (const mkt of Object.values(state.markets)) {
+    if (mkt.active && year >= mkt.openYear) vol += calcMarketVolume(mkt, yearIdx, mult);
   }
-
-  // LATAM
-  if (state.markets.latam.active && year >= state.markets.latam.openYear) {
-    const yearsOpen = year - state.markets.latam.openYear;
-    const growthIdx = Math.min(yearsOpen, 4);
-    const growthRate = state.markets.latam.volumeGrowth[growthIdx] / 100;
-    // Start at 10% of 2025 Argentina volume, grow from there
-    let base = 89417;
-    for (let i = 0; i <= yearsOpen; i++) {
-      const g = state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100;
-      base = i === 0 ? base : base * (1 + g * mult);
-    }
-    // Scale by latam market size factor (3x Argentina addressable)
-    vol += base * 3;
-  }
-
-  // USA
-  if (state.markets.usa.active && year >= state.markets.usa.openYear) {
-    const yearsOpen = year - state.markets.usa.openYear;
-    let base = 500000;
-    for (let i = 0; i <= yearsOpen; i++) {
-      const g = state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100;
-      base = i === 0 ? base : base * (1 + g * mult);
-    }
-    vol += base * 2;
-  }
-
   return vol;
 }
 
 function calcRevenue(state, year) {
-  // Use exact Excel model base volume for Argentina
   const mult = state.scenarioMultipliers[state.scenario];
+  const yearIdx = year - 2025;
   let rev = 0;
-
-  if (state.markets.argentina.active && year >= state.markets.argentina.openYear) {
-    const vol = (() => {
-      if (year <= 2025) return BASE_VOLUME[2025];
-      // Rebuild volume using state growth rates from base
-      let v = BASE_VOLUME[2025];
-      for (let y = 2026; y <= year; y++) {
-        const idx = y - 2026;
-        const g = (state.markets.argentina.volumeGrowth[Math.min(idx, 4)] / 100) * mult;
-        v = v * (1 + g);
-      }
-      return v;
-    })();
-    rev += (vol / 1000) * state.markets.argentina.priceUSD; // in $K
-  }
-
-  if (state.markets.latam.active && year >= state.markets.latam.openYear) {
-    const yearsOpen = year - state.markets.latam.openYear;
-    let vol = 5000000; // 5M units opening year
-    for (let i = 1; i <= yearsOpen; i++) {
-      const g = (state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100) * mult;
-      vol = vol * (1 + g);
+  for (const mkt of Object.values(state.markets)) {
+    if (mkt.active && year >= mkt.openYear) {
+      rev += (calcMarketVolume(mkt, yearIdx, mult) / 1000) * (mkt.priceUSD || state.cogsPerUnit);
     }
-    rev += (vol / 1000) * state.markets.latam.priceUSD;
   }
-
-  if (state.markets.usa.active && year >= state.markets.usa.openYear) {
-    const yearsOpen = year - state.markets.usa.openYear;
-    let vol = 2000000;
-    for (let i = 1; i <= yearsOpen; i++) {
-      const g = (state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100) * mult;
-      vol = vol * (1 + g);
-    }
-    rev += (vol / 1000) * state.markets.usa.priceUSD;
-  }
-
-  return rev; // USD thousands
+  return rev; // $K USD
 }
 
 function calcCOGS(state, year) {
   const mult = state.scenarioMultipliers[state.scenario];
+  const yearIdx = year - 2025;
   let cogs = 0;
-
-  if (state.markets.argentina.active && year >= state.markets.argentina.openYear) {
-    const vol = (() => {
-      if (year <= 2025) return BASE_VOLUME[2025];
-      let v = BASE_VOLUME[2025];
-      for (let y = 2026; y <= year; y++) {
-        const idx = y - 2026;
-        const g = (state.markets.argentina.volumeGrowth[Math.min(idx, 4)] / 100) * mult;
-        v = v * (1 + g);
-      }
-      return v;
-    })();
-    const cogsUnit = BASE_COGS_UNIT[year] || state.cogsPerUnit;
-    cogs += (vol / 1000) * cogsUnit;
-  }
-
-  if (state.markets.latam.active && year >= state.markets.latam.openYear) {
-    const yearsOpen = year - state.markets.latam.openYear;
-    let vol = 5000000;
-    for (let i = 1; i <= yearsOpen; i++) {
-      const g = (state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100) * mult;
-      vol = vol * (1 + g);
+  for (const mkt of Object.values(state.markets)) {
+    if (mkt.active && year >= mkt.openYear) {
+      cogs += (calcMarketVolume(mkt, yearIdx, mult) / 1000) * (mkt.cogsUSD || state.cogsPerUnit);
     }
-    cogs += (vol / 1000) * state.cogsPerUnit;
   }
-
-  if (state.markets.usa.active && year >= state.markets.usa.openYear) {
-    const yearsOpen = year - state.markets.usa.openYear;
-    let vol = 2000000;
-    for (let i = 1; i <= yearsOpen; i++) {
-      const g = (state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100) * mult;
-      vol = vol * (1 + g);
-    }
-    cogs += (vol / 1000) * state.cogsPerUnit;
-  }
-
-  return cogs;
+  return cogs; // $K USD
 }
 
 function calcGrossProfit(state, year) {
@@ -748,173 +667,254 @@ function Module5({ state, setState }) {
 // ─────────────────────────────────────────────
 // MODULE 1: MARKET TIMING
 // ─────────────────────────────────────────────
+// MODULE 1: PRODUCTO + MERCADO + TAM + PENETRACIÓN
+// ─────────────────────────────────────────────
 function Module1({ state, setState }) {
-  const fin = useMemo(() => buildFinancials(state), [state]);
+  const mult = state.scenarioMultipliers[state.scenario];
+  const MKT_COLORS = { argentina: GOLD, latam: BLUE, usa: GREEN };
 
+  const setMkt = (key, field, val) => setState(s => ({
+    ...s, markets: { ...s.markets, [key]: { ...s.markets[key], [field]: val } }
+  }));
+  const setPenet = (key, idx, val) => setState(s => {
+    const arr = [...(s.markets[key].penetration || [])];
+    arr[idx] = val;
+    return { ...s, markets: { ...s.markets, [key]: { ...s.markets[key], penetration: arr } } };
+  });
+
+  // Revenue by market per year for chart
   const marketData = YEARS.map(y => {
-    const argRev = (() => {
-      if (!state.markets.argentina.active || y < state.markets.argentina.openYear) return 0;
-      const mult = state.scenarioMultipliers[state.scenario];
-      if (y <= 2025) return (BASE_VOLUME[2025] / 1000) * state.markets.argentina.priceUSD;
-      let v = BASE_VOLUME[2025];
-      for (let yr = 2026; yr <= y; yr++) {
-        const idx = yr - 2026;
-        const g = (state.markets.argentina.volumeGrowth[Math.min(idx, 4)] / 100) * mult;
-        v = v * (1 + g);
+    const yearIdx = y - 2025;
+    const row = { year: y };
+    for (const [key, mkt] of Object.entries(state.markets)) {
+      if (mkt.active && y >= mkt.openYear) {
+        const vol = calcMarketVolume(mkt, yearIdx, mult);
+        row[mkt.country] = Math.round((vol / 1000) * mkt.priceUSD);
+      } else {
+        row[mkt.country] = 0;
       }
-      return (v / 1000) * state.markets.argentina.priceUSD;
-    })();
-
-    const latamRev = (() => {
-      if (!state.markets.latam.active || y < state.markets.latam.openYear) return 0;
-      const mult = state.scenarioMultipliers[state.scenario];
-      const yearsOpen = y - state.markets.latam.openYear;
-      let vol = 5000000;
-      for (let i = 1; i <= yearsOpen; i++) {
-        const g = (state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100) * mult;
-        vol = vol * (1 + g);
-      }
-      return (vol / 1000) * state.markets.latam.priceUSD;
-    })();
-
-    const usaRev = (() => {
-      if (!state.markets.usa.active || y < state.markets.usa.openYear) return 0;
-      const mult = state.scenarioMultipliers[state.scenario];
-      const yearsOpen = y - state.markets.usa.openYear;
-      let vol = 2000000;
-      for (let i = 1; i <= yearsOpen; i++) {
-        const g = (state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100) * mult;
-        vol = vol * (1 + g);
-      }
-      return (vol / 1000) * state.markets.usa.priceUSD;
-    })();
-
-    return { year: y, Argentina: Math.round(argRev), LATAM: Math.round(latamRev), USA: Math.round(usaRev), Total: Math.round(argRev + latamRev + usaRev) };
+    }
+    return row;
   });
 
-  // FX erosion data
-  const fxData = YEARS.map(y => {
-    const fxRate = state.arFX * Math.pow(1 + state.arFXDevaluation, y - 2025);
-    const revUSD = fin[y]?.revenue || 0;
-    const revARS = revUSD * 1000; // already in USD
-    return { year: y, 'USD Revenue': Math.round(revUSD), 'FX Rate (ARS/USD)': Math.round(fxRate) };
+  // Volume by market per year
+  const volumeData = YEARS.map(y => {
+    const yearIdx = y - 2025;
+    const row = { year: y };
+    for (const [key, mkt] of Object.entries(state.markets)) {
+      row[mkt.country] = mkt.active && y >= mkt.openYear
+        ? Math.round(calcMarketVolume(mkt, yearIdx, mult) / 1000000 * 10) / 10
+        : 0;
+    }
+    return row;
   });
-
-  // Capital required per market
-  const marketCapital = [
-    { market: 'Argentina', capex: 8800 + 3520, wc: Math.round(calcWorkingCapital({ ...state }, 2026) + calcWorkingCapital({ ...state }, 2027)), total: 8800 + 3520 + 4200, status: 'active' },
-    { market: 'LATAM', capex: 5000, wc: 8000, total: 13000, status: state.markets.latam.active ? 'active' : 'inactive' },
-    { market: 'USA', capex: 12000, wc: 15000, total: 27000, status: state.markets.usa.active ? 'active' : 'inactive' },
-  ];
 
   return (
     <div className="p-4 space-y-6">
-      {/* Recommendation */}
-      <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Recomendación estratégica</p>
-        <p className="text-lg font-condensed font-bold text-gold">
-          {state.markets.argentina.active && !state.markets.latam.active && !state.markets.usa.active
-            ? `Enfocate en Argentina hasta lograr FCF positivo (~2028). Luego, con capital propio, abrí LATAM en ${state.markets.latam.openYear}.`
-            : state.markets.latam.active && !state.markets.usa.active
-            ? `Dual track: Argentina + LATAM desde ${state.markets.latam.openYear}. Necesitás $${(13000).toLocaleString()}K adicionales.`
-            : `Estrategia multi-mercado activa — monitoreá burn rate semanalmente.`}
-        </p>
+
+      {/* Product selector */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Tipo de producto</p>
+        <div className="flex gap-2 flex-wrap">
+          {PRODUCT_TYPES.map(pt => (
+            <button key={pt.id}
+              onClick={() => setState(s => ({ ...s, productType: pt.id }))}
+              className={`px-3 py-1.5 text-xs font-condensed font-bold tracking-wide ${state.productType === pt.id ? 'bg-gold text-black' : 'bg-white-10 text-white-60 hover:text-white'}`}>
+              {pt.emoji} {pt.label}
+            </button>
+          ))}
+          <input
+            type="text"
+            value={state.productName}
+            onChange={e => setState(s => ({ ...s, productName: e.target.value }))}
+            placeholder="Nombre del producto"
+            className="bg-white-10 text-white px-2 py-1 text-xs font-condensed ml-2 w-36"
+          />
+        </div>
       </div>
 
-      {/* Market toggles */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { key: 'argentina', name: 'Argentina', flag: '🇦🇷', color: GOLD },
-          { key: 'latam', name: 'LATAM', flag: '🌎', color: BLUE },
-          { key: 'usa', name: 'USA', flag: '🇺🇸', color: GREEN },
-        ].map(({ key, name, flag, color }) => {
-          const mkt = state.markets[key];
+      {/* Market cards with TAM + penetration + price/cogs */}
+      <div className="space-y-4">
+        {Object.entries(state.markets).map(([key, mkt]) => {
+          const color = MKT_COLORS[key];
+          const yearIdx2030 = 5;
+          const vol2030 = calcMarketVolume(mkt, yearIdx2030, mult);
+          const rev2030 = (vol2030 / 1000) * mkt.priceUSD;
           return (
-            <div key={key} className={`border p-3 ${mkt.active ? 'border-gold bg-gold-dim' : 'border-white-20 bg-white-5'}`}>
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-condensed font-bold text-sm">{flag} {name}</span>
-                <button
-                  onClick={() => setState(s => ({
-                    ...s,
-                    markets: { ...s.markets, [key]: { ...s.markets[key], active: !s.markets[key].active } }
-                  }))}
-                  className={`text-xs px-2 py-0.5 font-condensed font-bold ${mkt.active ? 'bg-gold text-black' : 'bg-white-10 text-white-60'}`}
-                >
-                  {mkt.active ? 'ON' : 'OFF'}
-                </button>
-              </div>
-              <div className="text-xs text-white-60 font-condensed">
-                <div className="flex justify-between">
-                  <span>Open year</span>
-                  <input
-                    type="number"
-                    value={mkt.openYear}
-                    min={2025} max={2032}
-                    onChange={e => setState(s => ({
-                      ...s,
-                      markets: { ...s.markets, [key]: { ...s.markets[key], openYear: parseInt(e.target.value) } }
-                    }))}
-                    className="bg-white-10 text-white text-right w-16 px-1 font-condensed"
-                  />
+            <div key={key} className={`border ${mkt.active ? 'border-gold-border' : 'border-white-10'} bg-white-5`}>
+              {/* Market header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white-10">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{mkt.flag}</span>
+                  <span className="font-condensed font-bold text-base">{mkt.country}</span>
+                  {mkt.active && (
+                    <span className="text-xs font-condensed text-white-60">
+                      Rev 2030: <span className="text-gold font-bold">{fmt(rev2030 * 1000)}</span>
+                    </span>
+                  )}
                 </div>
-                <div className="flex justify-between mt-1">
-                  <span>Price/unit</span>
-                  <span className="text-white">${mkt.priceUSD}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-condensed text-white-60">Apertura:</span>
+                  <input type="number" value={mkt.openYear} min={2025} max={2032}
+                    onChange={e => setMkt(key, 'openYear', parseInt(e.target.value))}
+                    className="bg-white-10 text-white text-center w-14 px-1 text-xs font-condensed" />
+                  <button
+                    onClick={() => setMkt(key, 'active', !mkt.active)}
+                    className={`px-3 py-1 text-xs font-condensed font-bold ${mkt.active ? 'bg-gold text-black' : 'bg-white-10 text-white-60'}`}>
+                    {mkt.active ? 'ON' : 'OFF'}
+                  </button>
                 </div>
               </div>
+
+              {mkt.active && (
+                <div className="p-4 space-y-4">
+                  {/* Economic inputs: TAM, price, COGS */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">TAM (millones de unidades/año)</p>
+                      <div className="flex items-center gap-2">
+                        <input type="number" value={Math.round(mkt.tamUnits / 1000000)}
+                          min={1} max={50000}
+                          onChange={e => setMkt(key, 'tamUnits', parseFloat(e.target.value) * 1000000)}
+                          className="bg-black border border-white-20 text-gold text-right px-2 py-1 font-condensed font-bold text-lg w-28" />
+                        <span className="text-xs text-white-60 font-condensed">M unidades</span>
+                      </div>
+                      <p className="text-xs text-white-20 font-condensed mt-1">
+                        = {(mkt.tamUnits / 1000000000).toFixed(1)}B unidades
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">Precio de venta (USD/unidad)</p>
+                      <div className="flex items-center gap-1">
+                        <span className="text-white-60 font-condensed">$</span>
+                        <input type="number" value={mkt.priceUSD} min={0.1} max={20} step={0.01}
+                          onChange={e => setMkt(key, 'priceUSD', parseFloat(e.target.value))}
+                          className="bg-black border border-white-20 text-gold text-right px-2 py-1 font-condensed font-bold text-lg w-24" />
+                      </div>
+                      <p className="text-xs font-condensed mt-1" style={{ color }}>
+                        Margen bruto: {mkt.priceUSD > 0 ? ((1 - mkt.cogsUSD / mkt.priceUSD) * 100).toFixed(0) : 0}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">COGS (USD/unidad)</p>
+                      <div className="flex items-center gap-1">
+                        <span className="text-white-60 font-condensed">$</span>
+                        <input type="number" value={mkt.cogsUSD} min={0.01} max={20} step={0.01}
+                          onChange={e => setMkt(key, 'cogsUSD', parseFloat(e.target.value))}
+                          className="bg-black border border-white-20 text-red-400 text-right px-2 py-1 font-condensed font-bold text-lg w-24" />
+                      </div>
+                      <p className="text-xs text-white-20 font-condensed mt-1">
+                        Contrib: ${(mkt.priceUSD - mkt.cogsUSD).toFixed(2)}/u
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Penetration table */}
+                  <div>
+                    <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-2">
+                      Penetración de mercado (% del TAM) — editá año por año
+                    </p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs font-condensed">
+                        <thead>
+                          <tr>
+                            <td className="text-white-40 pr-3 py-1">Año</td>
+                            {YEARS.map(y => (
+                              <td key={y} className={`text-center px-2 py-1 ${y < mkt.openYear ? 'text-white-20' : 'text-white-60'}`}>{y}</td>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="text-white-40 pr-3 py-1">Penet. %</td>
+                            {YEARS.map((y, i) => {
+                              const pct = mkt.penetration[i] || 0;
+                              const inactive = y < mkt.openYear;
+                              return (
+                                <td key={y} className="px-1 py-1">
+                                  <input
+                                    type="number" value={pct} min={0} max={100} step={0.01}
+                                    disabled={inactive}
+                                    onChange={e => setPenet(key, i, parseFloat(e.target.value) || 0)}
+                                    className={`text-center w-16 px-1 py-0.5 font-condensed font-bold text-sm ${
+                                      inactive
+                                        ? 'bg-transparent text-white-20 cursor-not-allowed'
+                                        : 'bg-black border border-white-20 text-gold'
+                                    }`}
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          <tr>
+                            <td className="text-white-40 pr-3 py-1">Volumen</td>
+                            {YEARS.map((y, i) => {
+                              const pct = mkt.penetration[i] || 0;
+                              const vol = mkt.tamUnits * Math.min((pct / 100) * mult, 0.99);
+                              const inactive = y < mkt.openYear;
+                              return (
+                                <td key={y} className={`text-center px-2 py-1 ${inactive ? 'text-white-20' : 'text-white-60'}`}>
+                                  {vol >= 1e6 ? `${(vol/1e6).toFixed(1)}M` : vol >= 1e3 ? `${(vol/1e3).toFixed(0)}K` : vol.toFixed(0)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          <tr>
+                            <td className="text-white-40 pr-3 py-1">Revenue</td>
+                            {YEARS.map((y, i) => {
+                              const pct = mkt.penetration[i] || 0;
+                              const vol = mkt.tamUnits * Math.min((pct / 100) * mult, 0.99);
+                              const rev = (vol / 1000) * mkt.priceUSD;
+                              const inactive = y < mkt.openYear;
+                              return (
+                                <td key={y} className={`text-center px-2 py-1 font-bold ${inactive ? 'text-white-20' : 'text-white'}`}>
+                                  {inactive ? '—' : fmt(rev * 1000)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          <tr>
+                            <td className="text-white-40 pr-3 py-1">GP</td>
+                            {YEARS.map((y, i) => {
+                              const pct = mkt.penetration[i] || 0;
+                              const vol = mkt.tamUnits * Math.min((pct / 100) * mult, 0.99);
+                              const gp = (vol / 1000) * (mkt.priceUSD - mkt.cogsUSD);
+                              const inactive = y < mkt.openYear;
+                              return (
+                                <td key={y} className={`text-center px-2 py-1 ${inactive ? 'text-white-20' : 'text-green-400'}`}>
+                                  {inactive ? '—' : fmt(gp * 1000)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Revenue stacked bar */}
+      {/* Revenue by market stacked bar */}
       <div className="border border-white-10 bg-white-5 p-4">
-        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue por mercado ($K USD)</p>
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue total por mercado ($K USD)</p>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={marketData}>
             <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: MUTED, fontSize: 10, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
+            <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
-            <Bar dataKey="Argentina" stackId="a" fill={GOLD} />
-            <Bar dataKey="LATAM" stackId="a" fill={BLUE} />
-            <Bar dataKey="USA" stackId="a" fill={GREEN} />
+            {Object.entries(state.markets).map(([key, mkt]) => (
+              mkt.active && <Bar key={key} dataKey={mkt.country} stackId="a" fill={MKT_COLORS[key]} />
+            ))}
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Capital required */}
-      <div className="grid grid-cols-3 gap-3">
-        {marketCapital.map(m => (
-          <div key={m.market} className={`border p-3 ${m.status === 'active' ? 'border-gold-border' : 'border-white-10'}`}>
-            <p className="text-xs font-condensed text-white-60 uppercase">{m.market}</p>
-            <p className="text-2xl font-condensed font-bold text-white">${(m.total / 1000).toFixed(1)}M</p>
-            <p className="text-xs text-white-60 font-condensed">Capex: ${(m.capex / 1000).toFixed(1)}M + WC: ${(m.wc / 1000).toFixed(1)}M</p>
-          </div>
-        ))}
-      </div>
-
-      {/* FX erosion */}
-      <div className="border border-white-10 bg-white-5 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-condensed uppercase text-gold tracking-wider">FX Erosion — devaluación ARS</p>
-        </div>
-        <Slider label="Devaluación anual ARS/USD" value={state.arFXDevaluation} min={0.05} max={1.20} step={0.01}
-          onChange={v => setState(s => ({ ...s, arFXDevaluation: v }))}
-          format={v => fmtPct(v)} />
-        <ResponsiveContainer width="100%" height={160}>
-          <LineChart data={fxData}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
-            <YAxis yAxisId="usd" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
-            <YAxis yAxisId="fx" orientation="right" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v.toLocaleString('en')} />
-            <Tooltip content={<CustomTooltip />} />
-            <Line yAxisId="usd" dataKey="USD Revenue" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
-            <Line yAxisId="fx" dataKey="FX Rate (ARS/USD)" stroke={RED} strokeWidth={1} strokeDasharray="4 2" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
     </div>
   );
 }
@@ -1383,14 +1383,257 @@ function GlobalControls({ state, setState }) {
 }
 
 // ─────────────────────────────────────────────
+// MODULE 6: CAJA — ¿Me alcanza la plata?
+// ─────────────────────────────────────────────
+function Module6({ state, setState }) {
+  const fin = useMemo(() => buildFinancials(state), [state]);
+
+  // Working capital breakdown per year
+  const wcData = YEARS.map(y => {
+    const rev = fin[y]?.revenue || 0;
+    const cogs = fin[y]?.cogs || 0;
+    const ar   = (rev  / 365) * state.daysAR;
+    const inv  = (cogs / 365) * state.daysInventory;
+    const ap   = (cogs / 365) * state.daysAP;
+    const nwc  = ar + inv - ap;
+    const deltaWC = y > 2025 ? nwc - ((fin[y-1]?.revenue||0)/365*state.daysAR + (fin[y-1]?.cogs||0)/365*state.daysInventory - (fin[y-1]?.cogs||0)/365*state.daysAP) : 0;
+    return { year: y, 'Cuentas a Cobrar': Math.round(ar), 'Inventario': Math.round(inv), 'Cuentas a Pagar': -Math.round(ap), 'WC Neto': Math.round(nwc), deltaWC: Math.round(deltaWC) };
+  });
+
+  // Cumulative FCF (cash position)
+  let cumFCF = 0;
+  const cashData = YEARS.map(y => {
+    const fcf = fin[y]?.fcf || 0;
+    cumFCF += fcf;
+    return { year: y, 'FCF Anual': Math.round(fcf), 'Caja Acumulada': Math.round(cumFCF) };
+  });
+
+  // Peak cash need = worst cumulative FCF
+  const peakNeed = Math.min(...cashData.map(d => d['Caja Acumulada']));
+  const needYear = cashData.find(d => d['Caja Acumulada'] === peakNeed)?.year;
+  const breakEvenYear = cashData.find(d => d['Caja Acumulada'] >= 0 && d.year > 2025)?.year;
+
+  // Cash conversion cycle
+  const ccc = state.daysAR + state.daysInventory - state.daysAP;
+
+  // Debt service coverage
+  const debtService2027 = calcDebtService(state, 2027);
+  const ebitda2027 = fin[2027]?.ebitda || 0;
+  const dscr = debtService2027 > 0 ? ebitda2027 / debtService2027 : null;
+
+  // How much capital is needed?
+  const capitalGap = peakNeed < 0 ? Math.abs(peakNeed) * 1.2 : 0; // 20% buffer
+  const canRepayDebt = dscr !== null ? dscr >= 1.2 : true;
+
+  // Sensitivity: how DSO/DIO/DPO affect peak cash need
+  const sensitDSO = [15, 30, 45, 60, 90].map(dso => {
+    let cum = 0;
+    YEARS.forEach(y => {
+      const rev = fin[y]?.revenue || 0; const cogs = fin[y]?.cogs || 0;
+      const ebitda = fin[y]?.ebitda || 0; const capex = fin[y]?.capex || 0;
+      const ar = (rev/365)*dso; const inv = (cogs/365)*state.daysInventory; const ap = (cogs/365)*state.daysAP;
+      const nwc = ar + inv - ap;
+      const prevRev = y > 2025 ? (fin[y-1]?.revenue||0) : 0; const prevCogs = y > 2025 ? (fin[y-1]?.cogs||0) : 0;
+      const prevAR = (prevRev/365)*dso; const prevInv = (prevCogs/365)*state.daysInventory; const prevAP = (prevCogs/365)*state.daysAP;
+      const dWC = y > 2025 ? (nwc - (prevAR+prevInv-prevAP)) : 0;
+      cum += y > 2025 ? ebitda - (fin[y]?.tax||0) - capex - dWC : 0;
+    });
+    return { dso, peakCash: Math.round(cum) };
+  });
+
+  const sensitDPO = [15, 30, 45, 60, 90].map(dpo => {
+    let cum = 0;
+    YEARS.forEach(y => {
+      const rev = fin[y]?.revenue || 0; const cogs = fin[y]?.cogs || 0;
+      const ebitda = fin[y]?.ebitda || 0; const capex = fin[y]?.capex || 0;
+      const ar = (rev/365)*state.daysAR; const inv = (cogs/365)*state.daysInventory; const ap = (cogs/365)*dpo;
+      const nwc = ar + inv - ap;
+      const prevRev = y > 2025 ? (fin[y-1]?.revenue||0) : 0; const prevCogs = y > 2025 ? (fin[y-1]?.cogs||0) : 0;
+      const prevAR = (prevRev/365)*state.daysAR; const prevInv = (prevCogs/365)*state.daysInventory; const prevAP = (prevCogs/365)*dpo;
+      const dWC = y > 2025 ? (nwc - (prevAR+prevInv-prevAP)) : 0;
+      cum += y > 2025 ? ebitda - (fin[y]?.tax||0) - capex - dWC : 0;
+    });
+    return { dpo, peakCash: Math.round(cum) };
+  });
+
+  return (
+    <div className="p-4 space-y-6">
+
+      {/* Key output */}
+      <div className="border border-gold-border bg-gold-dim p-4">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-2">¿Me alcanza la caja?</p>
+        <div className="flex gap-8 flex-wrap items-end">
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">Capital necesario</p>
+            <p className={`text-4xl font-condensed font-bold ${capitalGap > 0 ? 'text-red-400' : 'text-green-400'}`}>
+              {capitalGap > 0 ? fmt(capitalGap * 1000) : 'Autosuficiente'}
+            </p>
+            {capitalGap > 0 && <p className="text-xs text-white-60 font-condensed mt-1">Pico de necesidad en {needYear} (con 20% buffer)</p>}
+          </div>
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">Break-even caja</p>
+            <p className="text-4xl font-condensed font-bold text-white">{breakEvenYear || '> 2030'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">Ciclo de caja (días)</p>
+            <p className={`text-4xl font-condensed font-bold ${ccc > 40 ? 'text-red-400' : ccc > 20 ? 'text-gold' : 'text-green-400'}`}>{ccc}d</p>
+            <p className="text-xs text-white-60 font-condensed">DSO + DIO − DPO</p>
+          </div>
+          {dscr !== null && (
+            <div>
+              <p className="text-xs text-white-60 font-condensed uppercase">DSCR 2027</p>
+              <p className={`text-4xl font-condensed font-bold ${canRepayDebt ? 'text-green-400' : 'text-red-400'}`}>{dscr.toFixed(1)}x</p>
+              <p className="text-xs text-white-60 font-condensed">{canRepayDebt ? 'Podés pagar la deuda' : '⚠ Insuficiente para servicio'}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* The three levers */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-4 tracking-wider">Las 3 palancas de caja — tocá y ves el impacto instantáneo</p>
+        <div className="grid grid-cols-3 gap-6">
+          <div>
+            <div className="text-center mb-3">
+              <p className="text-xs font-condensed text-white-60 uppercase">DSO — Días a Cobrar</p>
+              <p className={`text-5xl font-condensed font-black ${state.daysAR > 45 ? 'text-red-400' : state.daysAR > 30 ? 'text-gold' : 'text-green-400'}`}>{state.daysAR}d</p>
+              <p className="text-xs text-white-60 font-condensed">Cuentas a cobrar</p>
+            </div>
+            <input type="range" min={7} max={120} step={1} value={state.daysAR}
+              onChange={e => setState(s => ({ ...s, daysAR: parseInt(e.target.value) }))}
+              className="w-full" />
+            <div className="flex justify-between text-xs text-white-20 font-condensed mt-1">
+              <span>7d (contado)</span><span>120d (crédito extendido)</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-center mb-3">
+              <p className="text-xs font-condensed text-white-60 uppercase">DIO — Días de Inventario</p>
+              <p className={`text-5xl font-condensed font-black ${state.daysInventory > 30 ? 'text-red-400' : state.daysInventory > 15 ? 'text-gold' : 'text-green-400'}`}>{state.daysInventory}d</p>
+              <p className="text-xs text-white-60 font-condensed">Stock en depósito</p>
+            </div>
+            <input type="range" min={5} max={90} step={1} value={state.daysInventory}
+              onChange={e => setState(s => ({ ...s, daysInventory: parseInt(e.target.value) }))}
+              className="w-full" />
+            <div className="flex justify-between text-xs text-white-20 font-condensed mt-1">
+              <span>5d (just-in-time)</span><span>90d (buffer alto)</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-center mb-3">
+              <p className="text-xs font-condensed text-white-60 uppercase">DPO — Días a Pagar</p>
+              <p className={`text-5xl font-condensed font-black ${state.daysAP < 20 ? 'text-red-400' : state.daysAP < 45 ? 'text-gold' : 'text-green-400'}`}>{state.daysAP}d</p>
+              <p className="text-xs text-white-60 font-condensed">Crédito de proveedor</p>
+            </div>
+            <input type="range" min={0} max={120} step={1} value={state.daysAP}
+              onChange={e => setState(s => ({ ...s, daysAP: parseInt(e.target.value) }))}
+              className="w-full" />
+            <div className="flex justify-between text-xs text-white-20 font-condensed mt-1">
+              <span>0d (pago anticipado)</span><span>120d (crédito máximo)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cumulative cash position */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Posición de caja acumulada ($K USD)</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <ComposedChart data={cashData}>
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 || v <= -1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <ReferenceLine y={0} stroke={RED} strokeDasharray="4 2" strokeWidth={1.5} />
+            <Bar dataKey="FCF Anual" fill={BLUE} fillOpacity={0.6} />
+            <Line dataKey="Caja Acumulada" stroke={GOLD} strokeWidth={2.5} dot={{ fill: GOLD, r: 4 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Working capital breakdown */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Capital de trabajo — AR / Inventario / AP ($K USD)</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={wcData}>
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 || v <= -1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
+            <Bar dataKey="Cuentas a Cobrar" stackId="wc" fill={BLUE} />
+            <Bar dataKey="Inventario" stackId="wc" fill={PURPLE} />
+            <Bar dataKey="Cuentas a Pagar" stackId="wc" fill={GREEN} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Sensitivity: DSO vs DPO impact on cash */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad DSO → Caja acumulada 2030 ($K)</p>
+          <table className="w-full text-xs font-condensed">
+            <thead><tr>
+              <th className="text-left text-white-40 pb-2">DSO</th>
+              <th className="text-right text-white-40 pb-2">Caja 2030</th>
+              <th className="text-right text-white-40 pb-2">vs actual</th>
+            </tr></thead>
+            <tbody>
+              {sensitDSO.map(row => {
+                const base = sensitDSO.find(r => r.dso === 45)?.peakCash || 0;
+                const delta = row.peakCash - base;
+                return (
+                  <tr key={row.dso} className={row.dso === state.daysAR ? 'bg-gold-dim' : ''}>
+                    <td className={`py-1 ${row.dso === state.daysAR ? 'text-gold font-bold' : 'text-white-60'}`}>{row.dso}d</td>
+                    <td className={`text-right ${row.peakCash >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(row.peakCash * 1000)}</td>
+                    <td className={`text-right ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>{delta >= 0 ? '+' : ''}{fmt(delta * 1000)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad DPO → Caja acumulada 2030 ($K)</p>
+          <table className="w-full text-xs font-condensed">
+            <thead><tr>
+              <th className="text-left text-white-40 pb-2">DPO</th>
+              <th className="text-right text-white-40 pb-2">Caja 2030</th>
+              <th className="text-right text-white-40 pb-2">vs actual</th>
+            </tr></thead>
+            <tbody>
+              {sensitDPO.map(row => {
+                const base = sensitDPO.find(r => r.dpo === 30)?.peakCash || 0;
+                const delta = row.peakCash - base;
+                return (
+                  <tr key={row.dpo} className={row.dpo === state.daysAP ? 'bg-gold-dim' : ''}>
+                    <td className={`py-1 ${row.dpo === state.daysAP ? 'text-gold font-bold' : 'text-white-60'}`}>{row.dpo}d</td>
+                    <td className={`text-right ${row.peakCash >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(row.peakCash * 1000)}</td>
+                    <td className={`text-right ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>{delta >= 0 ? '+' : ''}{fmt(delta * 1000)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────
 const TABS = [
-  { id: 'markets',   label: '01 — Mercados',     question: '¿Qué mercado abro y cuándo?' },
-  { id: 'financing', label: '02 — Financiamiento', question: '¿Deuda o equity?' },
-  { id: 'channels',  label: '03 — Canales',        question: '¿Dónde meto el próximo peso?' },
-  { id: 'macro',     label: '04 — Macro',          question: '¿Cómo me afecta la macro?' },
-  { id: 'dcf',       label: '05 — Valuación',      question: '¿Cuánto vale (Sh!) hoy?' },
+  { id: 'markets',   label: '01 — Producto & Mercado', question: '¿Qué vendo, a quién y a qué precio?' },
+  { id: 'caja',      label: '02 — Caja',               question: '¿Me alcanza la plata? ¿Cuánto capital necesito?' },
+  { id: 'financing', label: '03 — Financiamiento',     question: '¿Deuda o equity — y qué me cuesta?' },
+  { id: 'channels',  label: '04 — Canales',            question: '¿Dónde meto el próximo peso?' },
+  { id: 'macro',     label: '05 — Macro',              question: '¿Cómo me afecta la macro?' },
+  { id: 'dcf',       label: '06 — Valuación',          question: '¿Cuánto vale (Sh!) hoy?' },
 ];
 
 function App() {
@@ -1434,6 +1677,7 @@ function App() {
       {/* Module content */}
       <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 130px)' }}>
         {activeTab === 'markets'   && <Module1 state={state} setState={setState} />}
+        {activeTab === 'caja'      && <Module6 state={state} setState={setState} />}
         {activeTab === 'financing' && <Module2 state={state} setState={setState} />}
         {activeTab === 'channels'  && <Module3 state={state} setState={setState} />}
         {activeTab === 'macro'     && <Module4 state={state} setState={setState} />}
