@@ -489,13 +489,23 @@ function colorVal(val) {
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
+  // Smart formatter: detect value type by series name
+  const fmtTooltipVal = (name, v) => {
+    if (typeof v !== 'number') return v;
+    // Percentages (e.g. "EBITDA %", "Gross Margin %", "Margen blended")
+    if (/[%]$|Margin %|EBITDA %|margin|Margen/i.test(name)) return `${v.toFixed(1)}%`;
+    // Per-unit dollar amounts (e.g. "Contrib/Unit ($)", price fields < 20)
+    if (/\/Unit|\(\$\)|per unit/i.test(name) || (Math.abs(v) < 20 && Math.abs(v) > 0 && !Number.isInteger(v))) return `$${v.toFixed(2)}`;
+    // Default: treat as $K → format as M/K
+    return v < 0 ? `(${fmt(Math.abs(v) * 1000)})` : fmt(v * 1000);
+  };
   return (
     <div style={{ background: '#FFFFFF', border: '1px solid #E6E6E6', borderLeft: '3px solid #F7AF1C', padding: '8px 14px', fontFamily: 'Inter, Helvetica Neue, sans-serif', boxShadow: '0 4px 16px rgba(29,29,27,0.12)' }}>
       <p style={{ color: '#1D1D1B', fontWeight: 700, fontSize: 13, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color || '#1D1D1B', fontSize: 13, margin: '2px 0' }}>
           <span style={{ color: 'rgba(29,29,27,0.5)', marginRight: 4 }}>{p.name}:</span>
-          <strong>{typeof p.value === 'number' ? (p.value >= 1000 ? `$${(p.value).toLocaleString('en', {maximumFractionDigits: 0})}K` : `$${p.value.toLocaleString('en', {maximumFractionDigits: 1})}K`) : p.value}</strong>
+          <strong>{fmtTooltipVal(p.name, p.value)}</strong>
         </p>
       ))}
     </div>
@@ -661,7 +671,7 @@ function Module5({ state, setState }) {
       {/* FCF chart */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="border border-ash bg-ink-5 p-4">
-          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">FCF & EBITDA ($K)</p>
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">FCF & EBITDA</p>
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={fcfData}>
               <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
@@ -1426,7 +1436,7 @@ function Module2({ state, setState }) {
 
       {/* Equity value chart */}
       <div className="border border-ash bg-ink-5 p-4">
-        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Valor equity founders vs inversores ($K)</p>
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Valor equity — founders vs inversores</p>
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={equityData}>
             <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
@@ -1943,7 +1953,16 @@ function Module6({ state, setState }) {
 
       {/* Cumulative cash position */}
       <div className="border border-ash bg-ink-5 p-4">
-        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Posición de caja acumulada ($K USD)</p>
+        <div className="mb-3">
+          <p className="text-xs font-condensed uppercase text-gold tracking-wider">Posición de caja acumulada</p>
+          <div className="flex gap-5 mt-1.5 text-xs font-condensed text-ink-60">
+            <span><span className="inline-block w-3 h-3 mr-1.5 align-middle" style={{ background: BLUE, opacity: 0.7 }}></span><strong className="text-ink">Barras — FCF Anual:</strong> cuánta plata generás (verde) o quemás (rojo) en ese año específico.</span>
+            <span><span className="inline-block w-3 h-1.5 mr-1.5 align-middle" style={{ background: GOLD }}></span><strong className="text-ink">Línea — Caja Acumulada:</strong> tu posición total desde el arranque. Si cae debajo de $0, ese es el dinero que necesitás levantar.</span>
+          </div>
+          <p className="text-xs font-condensed text-ink-40 mt-1">
+            Capital necesario = punto más bajo de la línea naranja × 1.2 (buffer). Hoy: <strong className="text-red-600">{fmt(peakNeed * 1000)}</strong> en {needYear} → con buffer: <strong className="text-red-600">{fmt(capitalGap * 1000)}</strong>
+          </p>
+        </div>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={cashData}>
             <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
@@ -1960,7 +1979,7 @@ function Module6({ state, setState }) {
 
       {/* Working capital breakdown */}
       <div className="border border-ash bg-ink-5 p-4">
-        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Capital de trabajo — AR / Inventario / AP ($K USD)</p>
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Capital de trabajo — Cuentas a cobrar / Inventario / Cuentas a pagar</p>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={wcData}>
             <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
@@ -1979,7 +1998,7 @@ function Module6({ state, setState }) {
       {/* Sensitivity: DSO vs DPO impact on cash */}
       <div className="grid grid-cols-2 gap-4">
         <div className="border border-ash bg-ink-5 p-4">
-          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad DSO → Caja acumulada 2030 ($K)</p>
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad: días a cobrar (DSO) → caja 2030</p>
           <table className="w-full text-xs font-condensed">
             <thead><tr>
               <th className="text-left text-ink-40 pb-2">DSO</th>
@@ -2002,7 +2021,7 @@ function Module6({ state, setState }) {
           </table>
         </div>
         <div className="border border-ash bg-ink-5 p-4">
-          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad DPO → Caja acumulada 2030 ($K)</p>
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad: días a pagar (DPO) → caja 2030</p>
           <table className="w-full text-xs font-condensed">
             <thead><tr>
               <th className="text-left text-ink-40 pb-2">DPO</th>
