@@ -6,24 +6,33 @@
 <title>(Sh!) Strategic Decision Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
   theme: {
     extend: {
       fontFamily: {
+        sans:      ['Inter', 'Helvetica Neue', 'Arial', 'sans-serif'],
         condensed: ['Barlow Condensed', 'sans-serif'],
-        barlow: ['Barlow', 'sans-serif'],
+        barlow:    ['Inter', 'Helvetica Neue', 'Arial', 'sans-serif'],
       },
       colors: {
-        gold: '#F7AF1C',
-        'gold-dim': 'rgba(247,175,28,0.15)',
-        'gold-border': 'rgba(247,175,28,0.3)',
+        gold:         '#F7AF1C',
+        'gold-dim':   'rgba(247,175,28,0.12)',
+        'gold-border':'rgba(247,175,28,0.35)',
+        ink:          '#1D1D1B',
+        'ink-60':     'rgba(29,29,27,0.6)',
+        'ink-40':     'rgba(29,29,27,0.4)',
+        'ink-20':     'rgba(29,29,27,0.2)',
+        'ink-10':     'rgba(29,29,27,0.1)',
+        'ink-5':      'rgba(29,29,27,0.04)',
+        ash:          '#E6E6E6',
+        /* legacy aliases — mantener por compatibilidad con clases no migradas */
         'white-60': 'rgba(255,255,255,0.6)',
         'white-20': 'rgba(255,255,255,0.2)',
         'white-10': 'rgba(255,255,255,0.1)',
-        'white-5': 'rgba(255,255,255,0.05)',
+        'white-5':  'rgba(255,255,255,0.05)',
       }
     }
   }
@@ -31,18 +40,32 @@ tailwind.config = {
 </script>
 <style>
   * { box-sizing: border-box; }
-  body { background: #000; color: #fff; font-family: 'Barlow', sans-serif; margin: 0; }
+  body { background: #FFFFFF; color: #1D1D1B; font-family: 'Inter', 'Helvetica Neue', sans-serif; margin: 0; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: #111; }
-  ::-webkit-scrollbar-thumb { background: #F7AF1C44; }
+  ::-webkit-scrollbar-track { background: #E6E6E6; }
+  ::-webkit-scrollbar-thumb { background: #F7AF1C88; }
   input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
-  input[type=range]::-webkit-slider-runnable-track { background: rgba(255,255,255,0.15); height: 3px; }
+  input[type=range]::-webkit-slider-runnable-track { background: rgba(29,29,27,0.15); height: 3px; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; background: #F7AF1C; width: 14px; height: 14px; margin-top: -5.5px; }
-  .tab-active { border-bottom: 2px solid #F7AF1C; color: #F7AF1C; }
-  .cell-highlight { background: rgba(247,175,28,0.2); color: #F7AF1C; }
-  .negative { color: #ef4444; }
-  .positive { color: #4ade80; }
+  .tab-active { border-bottom: 2px solid #F7AF1C; color: #1D1D1B; font-weight: 700; }
+  .tab-active-gold { border-bottom: 2px solid #F7AF1C; color: #F7AF1C; font-weight: 700; }
+  .cell-highlight { background: rgba(247,175,28,0.15); color: #1D1D1B; font-weight: 700; }
+  .negative { color: #dc2626; }
+  .positive { color: #16a34a; }
   .recharts-tooltip-wrapper { z-index: 100; }
+  input[type=number], input[type=text], select {
+    background: #FFFFFF;
+    border: 1px solid #E6E6E6;
+    color: #1D1D1B;
+    border-radius: 0;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type=number]:focus, input[type=text]:focus, select:focus {
+    border-color: #F7AF1C;
+    box-shadow: 0 0 0 2px rgba(247,175,28,0.15);
+  }
+  button { border-radius: 0 !important; }
 </style>
 </head>
 <body>
@@ -163,13 +186,15 @@ const INITIAL_STATE = {
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 const FORECAST_YEARS = [2026, 2027, 2028, 2029, 2030];
-const GOLD = '#F7AF1C';
-const RED = '#ef4444';
-const GREEN = '#4ade80';
-const BLUE = '#60a5fa';
-const PURPLE = '#a78bfa';
-const CYAN = '#22d3ee';
-const MUTED = 'rgba(255,255,255,0.4)';
+const GOLD    = '#F7AF1C';
+const INK     = '#1D1D1B';
+const ASH     = '#E6E6E6';
+const RED     = '#dc2626';
+const GREEN   = '#16a34a';
+const BLUE    = '#2563eb';
+const PURPLE  = '#7c3aed';
+const CYAN    = '#0891b2';
+const MUTED   = 'rgba(29,29,27,0.45)';
 
 // ─────────────────────────────────────────────
 // MODEL FUNCTIONS
@@ -434,17 +459,18 @@ function fmtM(val) {
 }
 function colorVal(val) {
   if (val === null || val === undefined) return '';
-  return val >= 0 ? 'text-green-400' : 'text-red-400';
+  return val >= 0 ? 'text-emerald-700' : 'text-red-600';
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#111', border: '1px solid rgba(247,175,28,0.3)', padding: '8px 12px', fontFamily: 'Barlow Condensed' }}>
-      <p style={{ color: '#F7AF1C', fontWeight: 600, marginBottom: 4 }}>{label}</p>
+    <div style={{ background: '#FFFFFF', border: '1px solid #E6E6E6', borderLeft: '3px solid #F7AF1C', padding: '8px 14px', fontFamily: 'Inter, Helvetica Neue, sans-serif', boxShadow: '0 4px 16px rgba(29,29,27,0.12)' }}>
+      <p style={{ color: '#1D1D1B', fontWeight: 700, fontSize: 13, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
       {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color || '#fff', fontSize: 13 }}>
-          {p.name}: {typeof p.value === 'number' ? (p.value >= 1000 ? `$${(p.value).toLocaleString('en', {maximumFractionDigits: 0})}K` : `$${p.value.toLocaleString('en', {maximumFractionDigits: 1})}K`) : p.value}
+        <p key={i} style={{ color: p.color || '#1D1D1B', fontSize: 13, margin: '2px 0' }}>
+          <span style={{ color: 'rgba(29,29,27,0.5)', marginRight: 4 }}>{p.name}:</span>
+          <strong>{typeof p.value === 'number' ? (p.value >= 1000 ? `$${(p.value).toLocaleString('en', {maximumFractionDigits: 0})}K` : `$${p.value.toLocaleString('en', {maximumFractionDigits: 1})}K`) : p.value}</strong>
         </p>
       ))}
     </div>
@@ -458,7 +484,7 @@ function Slider({ label, value, min, max, step, onChange, format }) {
   return (
     <div className="mb-3">
       <div className="flex justify-between mb-1">
-        <span className="text-xs font-condensed text-white-60 uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-condensed text-ink-60 uppercase tracking-wider">{label}</span>
         <span className="text-sm font-condensed font-bold text-gold">{format ? format(value) : value}</span>
       </div>
       <input
@@ -511,25 +537,25 @@ function Module5({ state, setState }) {
     <div className="p-4 space-y-6">
       {/* Header answer */}
       <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Valuación base case hoy</p>
+        <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-1">Valuación base case hoy</p>
         <div className="flex gap-8 flex-wrap">
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">EV (Perpetuity)</p>
+            <p className="text-xs text-ink-60 font-condensed uppercase">EV (Perpetuity)</p>
             <p className="text-4xl font-condensed font-bold text-gold">{fmt(dcf.evPerpetual * 1000)}</p>
           </div>
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">EV (Exit Multiple)</p>
-            <p className="text-4xl font-condensed font-bold text-white">{fmt(dcf.evMultiple * 1000)}</p>
+            <p className="text-xs text-ink-60 font-condensed uppercase">EV (Exit Multiple)</p>
+            <p className="text-4xl font-condensed font-bold text-ink">{fmt(dcf.evMultiple * 1000)}</p>
           </div>
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">EV / Revenue 2030</p>
-            <p className="text-4xl font-condensed font-bold text-white">
+            <p className="text-xs text-ink-60 font-condensed uppercase">EV / Revenue 2030</p>
+            <p className="text-4xl font-condensed font-bold text-ink">
               {fin[2030]?.revenue > 0 ? `${((dcf.evPerpetual) / fin[2030].revenue).toFixed(1)}x` : '—'}
             </p>
           </div>
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">EV / EBITDA 2030</p>
-            <p className="text-4xl font-condensed font-bold text-white">
+            <p className="text-xs text-ink-60 font-condensed uppercase">EV / EBITDA 2030</p>
+            <p className="text-4xl font-condensed font-bold text-ink">
               {fin[2030]?.ebitda > 0 ? `${((dcf.evPerpetual) / fin[2030].ebitda).toFixed(1)}x` : '—'}
             </p>
           </div>
@@ -540,18 +566,18 @@ function Module5({ state, setState }) {
       <div className="grid grid-cols-3 gap-2">
         {scenarioResults.map(({ sc, ev }) => (
           <div key={sc}
-            className={`border p-3 cursor-pointer ${state.scenario === sc ? 'border-gold bg-gold-dim' : 'border-white-20 bg-white-5'}`}
+            className={`border p-3 cursor-pointer ${state.scenario === sc ? 'border-gold bg-gold-dim' : 'border-ink-20 bg-ink-5'}`}
             onClick={() => setState(s => ({ ...s, scenario: sc }))}>
-            <p className="text-xs font-condensed uppercase text-white-60">{sc === 'best' ? 'Best Case' : sc === 'base' ? 'Base Case' : 'Worst Case'}</p>
-            <p className="text-2xl font-condensed font-bold text-white">{fmt(ev * 1000)}</p>
-            <p className="text-xs text-white-60">Perpetuity EV</p>
+            <p className="text-xs font-condensed uppercase text-ink-60">{sc === 'best' ? 'Best Case' : sc === 'base' ? 'Base Case' : 'Worst Case'}</p>
+            <p className="text-2xl font-condensed font-bold text-ink">{fmt(ev * 1000)}</p>
+            <p className="text-xs text-ink-60">Perpetuity EV</p>
           </div>
         ))}
       </div>
 
       {/* DCF inputs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">DCF Inputs</p>
           <Slider label="WACC" value={state.wacc} min={0.06} max={0.20} step={0.001}
             onChange={v => setState(s => ({ ...s, wacc: v }))}
@@ -568,13 +594,13 @@ function Module5({ state, setState }) {
         </div>
 
         {/* P&L summary */}
-        <div className="md:col-span-2 border border-white-10 bg-white-5 p-4 overflow-x-auto">
+        <div className="md:col-span-2 border border-ash bg-ink-5 p-4 overflow-x-auto">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Income Statement ($K USD)</p>
           <table className="w-full text-xs font-condensed">
             <thead>
               <tr>
-                <th className="text-left text-white-60 pb-1 font-normal">Línea</th>
-                {YEARS.map(y => <th key={y} className="text-right text-white-60 pb-1 font-normal">{y}</th>)}
+                <th className="text-left text-ink-60 pb-1 font-normal">Línea</th>
+                {YEARS.map(y => <th key={y} className="text-right text-ink-60 pb-1 font-normal">{y}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -588,12 +614,12 @@ function Module5({ state, setState }) {
                 { key: 'fcf', label: 'FCF', bold: true, color: true },
               ].map(row => (
                 <tr key={row.key} className={row.highlight ? 'bg-gold-dim' : ''}>
-                  <td className={`py-0.5 ${row.bold ? 'font-bold text-white' : 'text-white-60'}`}>
+                  <td className={`py-0.5 ${row.bold ? 'font-bold text-ink' : 'text-ink-60'}`}>
                     {row.label}
                   </td>
                   {YEARS.map(y => {
                     const v = fin[y]?.[row.key];
-                    const cls = row.color ? (v >= 0 ? 'text-green-400' : 'text-red-400') : (row.highlight ? 'text-gold font-bold' : row.bold ? 'text-white font-bold' : 'text-white-60');
+                    const cls = row.color ? (v >= 0 ? 'text-emerald-700' : 'text-red-600') : (row.highlight ? 'text-gold font-bold' : row.bold ? 'text-ink font-bold' : 'text-ink-60');
                     return (
                       <td key={y} className={`text-right py-0.5 ${cls}`}>
                         {v !== null && v !== undefined ? fmtK(v) : '—'}
@@ -609,15 +635,15 @@ function Module5({ state, setState }) {
 
       {/* FCF chart */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">FCF & EBITDA ($K)</p>
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={fcfData}>
-              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.08)" />
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
               <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: MUTED, fontSize: 10, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" strokeDasharray="3 3" />
+              <ReferenceLine y={0} stroke="rgba(29,29,27,0.25)" strokeDasharray="3 3" />
               <Bar dataKey="EBITDA" fill={GOLD} fillOpacity={0.3} />
               <Line dataKey="FCF" stroke={GOLD} dot={{ fill: GOLD, r: 3 }} strokeWidth={2} />
             </ComposedChart>
@@ -625,7 +651,7 @@ function Module5({ state, setState }) {
         </div>
 
         {/* DCF waterfall breakdown */}
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">EV Breakdown (Perpetuity)</p>
           <div className="space-y-2">
             {FORECAST_YEARS.map(y => {
@@ -634,8 +660,8 @@ function Module5({ state, setState }) {
               const pct = Math.abs(pv / totalEV);
               return (
                 <div key={y} className="flex items-center gap-2">
-                  <span className="text-xs font-condensed text-white-60 w-8">{y}</span>
-                  <div className="flex-1 relative h-5 bg-white-5">
+                  <span className="text-xs font-condensed text-ink-60 w-8">{y}</span>
+                  <div className="flex-1 relative h-5 bg-ink-5">
                     <div
                       className="absolute top-0 bottom-0"
                       style={{
@@ -652,10 +678,10 @@ function Module5({ state, setState }) {
               );
             })}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-condensed text-white-60 w-8">TV</span>
-              <div className="flex-1 relative h-5 bg-white-5">
+              <span className="text-xs font-condensed text-ink-60 w-8">TV</span>
+              <div className="flex-1 relative h-5 bg-ink-5">
                 <div className="absolute top-0 bottom-0 left-0 right-0" style={{ background: 'rgba(96,165,250,0.2)' }} />
-                <span className="absolute inset-0 flex items-center px-1 text-xs font-condensed text-blue-400 font-bold">
+                <span className="absolute inset-0 flex items-center px-1 text-xs font-condensed text-blue-700 font-bold">
                   ${(dcf.pvTerminal / 1000).toFixed(0)}M · {fmtPct(dcf.pvTerminal / dcf.evPerpetual)} of EV
                 </span>
               </div>
@@ -665,16 +691,16 @@ function Module5({ state, setState }) {
       </div>
 
       {/* WACC / TG sensitivity table */}
-      <div className="border border-white-10 bg-white-5 p-4 overflow-x-auto">
+      <div className="border border-ash bg-ink-5 p-4 overflow-x-auto">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">
           Sensitivity: Enterprise Value ($K) — filas = TG rate, columnas = WACC
         </p>
         <table className="text-xs font-condensed">
           <thead>
             <tr>
-              <th className="text-right text-white-60 font-normal pr-3 pb-1">TG \ WACC</th>
+              <th className="text-right text-ink-60 font-normal pr-3 pb-1">TG \ WACC</th>
               {waccRange.map(w => (
-                <th key={w} className={`text-right px-3 pb-1 font-normal ${Math.abs(w - state.wacc) < 0.005 ? 'text-gold' : 'text-white-60'}`}>
+                <th key={w} className={`text-right px-3 pb-1 font-normal ${Math.abs(w - state.wacc) < 0.005 ? 'text-gold' : 'text-ink-60'}`}>
                   {(w * 100).toFixed(0)}%
                 </th>
               ))}
@@ -683,7 +709,7 @@ function Module5({ state, setState }) {
           <tbody>
             {sensitivityTable.map(({ tg, values }) => (
               <tr key={tg}>
-                <td className={`text-right pr-3 py-0.5 ${Math.abs(tg - state.terminalGrowthRate) < 0.003 ? 'text-gold font-bold' : 'text-white-60'}`}>
+                <td className={`text-right pr-3 py-0.5 ${Math.abs(tg - state.terminalGrowthRate) < 0.003 ? 'text-gold font-bold' : 'text-ink-60'}`}>
                   {(tg * 100).toFixed(0)}%
                 </td>
                 {values.map((v, i) => {
@@ -784,13 +810,13 @@ function Module1({ state, setState }) {
     <div className="p-4 space-y-6">
 
       {/* Product selector */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Tipo de producto</p>
         <div className="flex gap-2 flex-wrap">
           {PRODUCT_TYPES.map(pt => (
             <button key={pt.id}
               onClick={() => setState(s => ({ ...s, productType: pt.id }))}
-              className={`px-3 py-1.5 text-xs font-condensed font-bold tracking-wide ${state.productType === pt.id ? 'bg-gold text-black' : 'bg-white-10 text-white-60 hover:text-white'}`}>
+              className={`px-3 py-1.5 text-xs font-condensed font-bold tracking-wide ${state.productType === pt.id ? 'bg-gold text-black' : 'bg-ink-5 text-ink-60 hover:text-ink'}`}>
               {pt.emoji} {pt.label}
             </button>
           ))}
@@ -799,19 +825,19 @@ function Module1({ state, setState }) {
             value={state.productName}
             onChange={e => setState(s => ({ ...s, productName: e.target.value }))}
             placeholder="Nombre del producto"
-            className="bg-white-10 text-white px-2 py-1 text-xs font-condensed ml-2 w-36"
+            className="bg-ink-5 text-ink px-2 py-1 text-xs font-condensed ml-2 w-36"
           />
         </div>
       </div>
 
       {/* Country selector */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Mercados activos — agregá países</p>
         <div className="flex gap-2 items-center flex-wrap">
           <select
             value={selectedCode}
             onChange={e => setSelectedCode(e.target.value)}
-            className="bg-black border border-white-20 text-white text-sm font-condensed px-3 py-2 min-w-48"
+            className="bg-white border border-ash text-ink text-sm font-condensed px-3 py-2 min-w-48"
           >
             <option value="">— Seleccioná un país —</option>
             {COUNTRIES.filter(c => !state.markets[c.code]).map(c => (
@@ -821,10 +847,10 @@ function Module1({ state, setState }) {
           <button
             onClick={addMarket}
             disabled={!selectedCode}
-            className={`px-4 py-2 text-xs font-condensed font-bold tracking-wider ${selectedCode ? 'bg-gold text-black' : 'bg-white-10 text-white-20 cursor-not-allowed'}`}>
+            className={`px-4 py-2 text-xs font-condensed font-bold tracking-wider ${selectedCode ? 'bg-gold text-black' : 'bg-ink-5 text-ink-20 cursor-not-allowed'}`}>
             + Agregar mercado
           </button>
-          <span className="text-xs text-white-20 font-condensed ml-2">
+          <span className="text-xs text-ink-20 font-condensed ml-2">
             {Object.keys(state.markets).length} mercado{Object.keys(state.markets).length !== 1 ? 's' : ''} activo{Object.keys(state.markets).length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -838,35 +864,35 @@ function Module1({ state, setState }) {
           const vol2030 = calcMarketVolume(mkt, yearIdx2030, mult);
           const rev2030 = (vol2030 / 1000) * mkt.priceUSD;
           return (
-            <div key={key} className="border bg-white-5" style={{ borderColor: mkt.active ? color + '66' : 'rgba(255,255,255,0.1)' }}>
+            <div key={key} className="border bg-ink-5" style={{ borderColor: mkt.active ? color + '66' : 'rgba(255,255,255,0.1)' }}>
               {/* Market header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white-10">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-ash">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{mkt.flag}</span>
                   <div>
                     <span className="font-condensed font-bold text-base" style={{ color }}>{mkt.country}</span>
                     {mkt.active && (
-                      <span className="text-xs font-condensed text-white-60 ml-3">
+                      <span className="text-xs font-condensed text-ink-60 ml-3">
                         Rev 2030: <span className="font-bold" style={{ color }}>{fmt(rev2030 * 1000)}</span>
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-condensed text-white-60">Apertura:</span>
+                  <span className="text-xs font-condensed text-ink-60">Apertura:</span>
                   <input type="number" value={mkt.openYear} min={2025} max={2032}
                     onChange={e => setMkt(key, 'openYear', parseInt(e.target.value))}
-                    className="bg-white-10 text-white text-center w-14 px-1 text-xs font-condensed" />
+                    className="bg-ink-5 text-ink text-center w-14 px-1 text-xs font-condensed" />
                   <button
                     onClick={() => setMkt(key, 'active', !mkt.active)}
-                    className={`px-3 py-1 text-xs font-condensed font-bold ${mkt.active ? 'text-black' : 'bg-white-10 text-white-60'}`}
+                    className={`px-3 py-1 text-xs font-condensed font-bold ${mkt.active ? 'text-black' : 'bg-ink-5 text-ink-60'}`}
                     style={mkt.active ? { background: color } : {}}>
                     {mkt.active ? 'ON' : 'OFF'}
                   </button>
                   {Object.keys(state.markets).length > 1 && (
                     <button
                       onClick={() => removeMarket(key)}
-                      className="px-2 py-1 text-xs font-condensed text-white-20 hover:text-red-400 border border-white-10 hover:border-red-400">
+                      className="px-2 py-1 text-xs font-condensed text-ink-20 hover:text-red-600 border border-ash hover:border-red-400">
                       ×
                     </button>
                   )}
@@ -876,15 +902,15 @@ function Module1({ state, setState }) {
               {mkt.active && (
                 <div className="p-4 space-y-4">
                   {/* ── MARKET SIZING ── */}
-                  <div className="border border-white-10 p-3 space-y-3">
+                  <div className="border border-ash p-3 space-y-3">
                     <p className="text-xs font-condensed uppercase tracking-wider" style={{ color }}>Tamaño de mercado</p>
 
                     {/* Row 1: TAM $ + formato de lata */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">Valor total del mercado (USD)</p>
+                        <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">Valor total del mercado (USD)</p>
                         <div className="flex items-center gap-2">
-                          <span className="text-white-60 font-condensed text-sm">$</span>
+                          <span className="text-ink-60 font-condensed text-sm">$</span>
                           <input type="number"
                             value={mkt.tamUSD ?? Math.round(mkt.tamUnits * (mkt.tamAvgPrice || 1.00) / 1e6)}
                             min={1} max={500000} step={1}
@@ -894,13 +920,13 @@ function Module1({ state, setState }) {
                               setMkt(key, 'tamUSD', usd);
                               setMkt(key, 'tamUnits', usd * 1e6 / avgP);
                             }}
-                            className="bg-black border border-white-20 text-gold text-right px-2 py-1 font-condensed font-bold text-xl w-32" />
-                          <span className="text-xs text-white-60 font-condensed">M USD/año</span>
+                            className="bg-white border border-ash text-gold text-right px-2 py-1 font-condensed font-bold text-xl w-32" />
+                          <span className="text-xs text-ink-60 font-condensed">M USD/año</span>
                         </div>
                       </div>
 
                       <div>
-                        <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">Formato de lata</p>
+                        <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">Formato de lata</p>
                         <div className="flex gap-2 flex-wrap">
                           {CAN_FORMATS.map(cf => (
                             <button key={cf.id}
@@ -917,27 +943,27 @@ function Module1({ state, setState }) {
                                   }}
                                 }));
                               }}
-                              className={`px-3 py-1 text-xs font-condensed font-bold ${(mkt.canFormat || '355ml') === cf.id ? 'text-black' : 'bg-white-10 text-white-60'}`}
+                              className={`px-3 py-1 text-xs font-condensed font-bold ${(mkt.canFormat || '355ml') === cf.id ? 'text-black' : 'bg-ink-5 text-ink-60'}`}
                               style={(mkt.canFormat || '355ml') === cf.id ? { background: color } : {}}>
                               {cf.label}
                             </button>
                           ))}
                         </div>
                         {CAN_MAP[mkt.canFormat || '355ml'] && (
-                          <p className="text-xs text-white-20 font-condensed mt-1">{CAN_MAP[mkt.canFormat || '355ml'].note}</p>
+                          <p className="text-xs text-ink-20 font-condensed mt-1">{CAN_MAP[mkt.canFormat || '355ml'].note}</p>
                         )}
                       </div>
                     </div>
 
                     {/* Row 2: precio promedio + CAGR + TAM derivado */}
-                    <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white-10">
+                    <div className="grid grid-cols-3 gap-4 pt-2 border-t border-ash">
                       <div>
-                        <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">
+                        <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">
                           Precio promedio mercado (USD/lata)
-                          <span className="text-white-20 normal-case ml-1">para $ → unidades</span>
+                          <span className="text-ink-20 normal-case ml-1">para $ → unidades</span>
                         </p>
                         <div className="flex items-center gap-2">
-                          <span className="text-white-60 font-condensed text-sm">$</span>
+                          <span className="text-ink-60 font-condensed text-sm">$</span>
                           <input type="number"
                             value={mkt.tamAvgPrice ?? 1.00}
                             min={0.10} max={20} step={0.01}
@@ -947,26 +973,26 @@ function Module1({ state, setState }) {
                               setMkt(key, 'tamAvgPrice', avgP);
                               setMkt(key, 'tamUnits', tamUSD * 1e6 / avgP);
                             }}
-                            className="bg-black border border-white-20 text-white text-right px-2 py-1 font-condensed font-bold text-base w-24" />
+                            className="bg-white border border-ash text-ink text-right px-2 py-1 font-condensed font-bold text-base w-24" />
                         </div>
-                        <p className="text-xs text-white-20 font-condensed mt-1">≠ tu precio de venta</p>
+                        <p className="text-xs text-ink-20 font-condensed mt-1">≠ tu precio de venta</p>
                       </div>
 
                       <div>
-                        <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">
+                        <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">
                           CAGR del mercado
-                          <span className="text-white-20 normal-case ml-1">crecimiento anual</span>
+                          <span className="text-ink-20 normal-case ml-1">crecimiento anual</span>
                         </p>
                         <div className="flex items-center gap-2">
                           <input type="number"
                             value={((mkt.marketCAGR || 0) * 100).toFixed(1)}
                             min={0} max={50} step={0.5}
                             onChange={e => setMkt(key, 'marketCAGR', (parseFloat(e.target.value) || 0) / 100)}
-                            className="bg-black border border-white-20 text-right px-2 py-1 font-condensed font-bold text-xl w-20"
+                            className="bg-white border border-ash text-right px-2 py-1 font-condensed font-bold text-xl w-20"
                             style={{ color }} />
-                          <span className="text-sm font-condensed text-white-60">%</span>
+                          <span className="text-sm font-condensed text-ink-60">%</span>
                         </div>
-                        <p className="text-xs text-white-20 font-condensed mt-1">
+                        <p className="text-xs text-ink-20 font-condensed mt-1">
                           TAM 2030: {(() => {
                             const tam30 = mkt.tamUnits * Math.pow(1 + (mkt.marketCAGR||0), 5);
                             return tam30 >= 1e9 ? `${(tam30/1e9).toFixed(1)}B` : `${(tam30/1e6).toFixed(0)}M`;
@@ -976,14 +1002,14 @@ function Module1({ state, setState }) {
 
                       <div className="flex items-start pt-1">
                         <div>
-                          <p className="text-xs font-condensed text-white-20 uppercase tracking-wider mb-1">TAM base (2025)</p>
+                          <p className="text-xs font-condensed text-ink-20 uppercase tracking-wider mb-1">TAM base (2025)</p>
                           <p className="font-condensed font-black text-2xl" style={{ color }}>
                             {mkt.tamUnits >= 1e9
                               ? `${(mkt.tamUnits / 1e9).toFixed(2)}B`
                               : `${(mkt.tamUnits / 1e6).toFixed(0)}M`}
-                            <span className="text-sm font-normal text-white-40 ml-1">latas</span>
+                            <span className="text-sm font-normal text-ink-40 ml-1">latas</span>
                           </p>
-                          <p className="text-xs text-white-20 font-condensed">
+                          <p className="text-xs text-ink-20 font-condensed">
                             ${(mkt.tamUSD ?? Math.round(mkt.tamUnits * (mkt.tamAvgPrice||1) / 1e6)).toLocaleString()}M ÷ ${(mkt.tamAvgPrice||1.00).toFixed(2)}/lata
                           </p>
                         </div>
@@ -994,12 +1020,12 @@ function Module1({ state, setState }) {
                   {/* ── UNIT ECONOMICS ── */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">Tu precio de venta (USD/lata)</p>
+                      <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">Tu precio de venta (USD/lata)</p>
                       <div className="flex items-center gap-1">
-                        <span className="text-white-60 font-condensed">$</span>
+                        <span className="text-ink-60 font-condensed">$</span>
                         <input type="number" value={mkt.priceUSD} min={0.1} max={20} step={0.01}
                           onChange={e => setMkt(key, 'priceUSD', parseFloat(e.target.value))}
-                          className="bg-black border border-white-20 text-gold text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
+                          className="bg-white border border-ash text-gold text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
                       </div>
                       <p className="text-xs font-condensed mt-1" style={{ color }}>
                         Margen bruto: {mkt.priceUSD > 0 ? ((1 - mkt.cogsUSD / mkt.priceUSD) * 100).toFixed(0) : 0}%
@@ -1007,14 +1033,14 @@ function Module1({ state, setState }) {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-1">COGS (USD/lata)</p>
+                      <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">COGS (USD/lata)</p>
                       <div className="flex items-center gap-1">
-                        <span className="text-white-60 font-condensed">$</span>
+                        <span className="text-ink-60 font-condensed">$</span>
                         <input type="number" value={mkt.cogsUSD} min={0.01} max={20} step={0.01}
                           onChange={e => setMkt(key, 'cogsUSD', parseFloat(e.target.value))}
-                          className="bg-black border border-white-20 text-red-400 text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
+                          className="bg-white border border-ash text-red-600 text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
                       </div>
-                      <p className="text-xs text-white-20 font-condensed mt-1">
+                      <p className="text-xs text-ink-20 font-condensed mt-1">
                         {CAN_MAP[mkt.canFormat || '355ml']?.volML
                           ? `${CAN_MAP[mkt.canFormat || '355ml'].volML}ml · $${((mkt.cogsUSD / (CAN_MAP[mkt.canFormat || '355ml'].volML / 1000))).toFixed(2)}/litro`
                           : ''}
@@ -1024,22 +1050,22 @@ function Module1({ state, setState }) {
 
                   {/* Penetration table */}
                   <div>
-                    <p className="text-xs font-condensed text-white-60 uppercase tracking-wider mb-2">
+                    <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-2">
                       Penetración de mercado (% del TAM) — editá año por año
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs font-condensed">
                         <thead>
                           <tr>
-                            <td className="text-white-40 pr-3 py-1">Año</td>
+                            <td className="text-ink-40 pr-3 py-1">Año</td>
                             {YEARS.map(y => (
-                              <td key={y} className={`text-center px-2 py-1 ${y < mkt.openYear ? 'text-white-20' : 'text-white-60'}`}>{y}</td>
+                              <td key={y} className={`text-center px-2 py-1 ${y < mkt.openYear ? 'text-ink-20' : 'text-ink-60'}`}>{y}</td>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           <tr>
-                            <td className="text-white-40 pr-3 py-1">Penet. %</td>
+                            <td className="text-ink-40 pr-3 py-1">Penet. %</td>
                             {YEARS.map((y, i) => {
                               const pct = mkt.penetration[i] || 0;
                               const inactive = y < mkt.openYear;
@@ -1051,8 +1077,8 @@ function Module1({ state, setState }) {
                                     onChange={e => setPenet(key, i, parseFloat(e.target.value) || 0)}
                                     className={`text-center w-16 px-1 py-0.5 font-condensed font-bold text-sm ${
                                       inactive
-                                        ? 'bg-transparent text-white-20 cursor-not-allowed'
-                                        : 'bg-black border border-white-20 text-gold'
+                                        ? 'bg-transparent text-ink-20 cursor-not-allowed'
+                                        : 'bg-white border border-ash text-gold'
                                     }`}
                                   />
                                 </td>
@@ -1060,19 +1086,19 @@ function Module1({ state, setState }) {
                             })}
                           </tr>
                           <tr>
-                            <td className="text-white-20 pr-3 py-1 text-right leading-tight">TAM<br/>año</td>
+                            <td className="text-ink-20 pr-3 py-1 text-right leading-tight">TAM<br/>año</td>
                             {YEARS.map((y, i) => {
                               const cagr = mkt.marketCAGR || 0;
                               const tamY = mkt.tamUnits * Math.pow(1 + cagr, i);
                               return (
-                                <td key={y} className="text-center px-2 py-1 text-white-20 text-xs">
+                                <td key={y} className="text-center px-2 py-1 text-ink-20 text-xs">
                                   {tamY >= 1e9 ? `${(tamY/1e9).toFixed(1)}B` : `${(tamY/1e6).toFixed(0)}M`}
                                 </td>
                               );
                             })}
                           </tr>
                           <tr>
-                            <td className="text-white-40 pr-3 py-1">Volumen</td>
+                            <td className="text-ink-40 pr-3 py-1">Volumen</td>
                             {YEARS.map((y, i) => {
                               const pct = mkt.penetration[i] || 0;
                               const cagr = mkt.marketCAGR || 0;
@@ -1080,14 +1106,14 @@ function Module1({ state, setState }) {
                               const vol = tamY * Math.min((pct / 100) * mult, 0.99);
                               const inactive = y < mkt.openYear;
                               return (
-                                <td key={y} className={`text-center px-2 py-1 ${inactive ? 'text-white-20' : 'text-white-60'}`}>
+                                <td key={y} className={`text-center px-2 py-1 ${inactive ? 'text-ink-20' : 'text-ink-60'}`}>
                                   {inactive ? '—' : vol >= 1e6 ? `${(vol/1e6).toFixed(1)}M` : vol >= 1e3 ? `${(vol/1e3).toFixed(0)}K` : vol.toFixed(0)}
                                 </td>
                               );
                             })}
                           </tr>
                           <tr>
-                            <td className="text-white-40 pr-3 py-1">Revenue</td>
+                            <td className="text-ink-40 pr-3 py-1">Revenue</td>
                             {YEARS.map((y, i) => {
                               const pct = mkt.penetration[i] || 0;
                               const cagr = mkt.marketCAGR || 0;
@@ -1096,14 +1122,14 @@ function Module1({ state, setState }) {
                               const rev = (vol / 1000) * mkt.priceUSD;
                               const inactive = y < mkt.openYear;
                               return (
-                                <td key={y} className={`text-center px-2 py-1 font-bold ${inactive ? 'text-white-20' : 'text-white'}`}>
+                                <td key={y} className={`text-center px-2 py-1 font-bold ${inactive ? 'text-ink-20' : 'text-ink'}`}>
                                   {inactive ? '—' : fmt(rev * 1000)}
                                 </td>
                               );
                             })}
                           </tr>
                           <tr>
-                            <td className="text-white-40 pr-3 py-1">GP</td>
+                            <td className="text-ink-40 pr-3 py-1">GP</td>
                             {YEARS.map((y, i) => {
                               const pct = mkt.penetration[i] || 0;
                               const cagr = mkt.marketCAGR || 0;
@@ -1112,7 +1138,7 @@ function Module1({ state, setState }) {
                               const gp = (vol / 1000) * (mkt.priceUSD - mkt.cogsUSD);
                               const inactive = y < mkt.openYear;
                               return (
-                                <td key={y} className={`text-center px-2 py-1 ${inactive ? 'text-white-20' : 'text-green-400'}`}>
+                                <td key={y} className={`text-center px-2 py-1 ${inactive ? 'text-ink-20' : 'text-emerald-700'}`}>
                                   {inactive ? '—' : fmt(gp * 1000)}
                                 </td>
                               );
@@ -1130,15 +1156,15 @@ function Module1({ state, setState }) {
       </div>
 
       {/* Revenue by market stacked bar */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue total por mercado ($K USD)</p>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={marketData}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
             {Object.entries(state.markets).map(([key, mkt]) => (
               mkt.active && <Bar key={key} dataKey={mkt.country} stackId="a" fill={mkt.color || GOLD} />
             ))}
@@ -1192,12 +1218,12 @@ function Module2({ state, setState }) {
     <div className="p-4 space-y-6">
       {/* Key output */}
       <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-2">Conclusión: ¿deuda o equity?</p>
+        <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-2">Conclusión: ¿deuda o equity?</p>
         <p className="text-base font-condensed font-bold text-gold">
-          Deuda cuesta <span className="text-white">${(debtTotalCost/1000).toFixed(0)}K</span> total en intereses ·
-          Dilución cuesta <span className="text-white">{fmtPct(state.equityDilution)}</span> de EV ({fmt(dilutionCost * 1000)})
+          Deuda cuesta <span className="text-ink">${(debtTotalCost/1000).toFixed(0)}K</span> total en intereses ·
+          Dilución cuesta <span className="text-ink">{fmtPct(state.equityDilution)}</span> de EV ({fmt(dilutionCost * 1000)})
         </p>
-        <p className="text-sm font-condensed text-white-60 mt-1">
+        <p className="text-sm font-condensed text-ink-60 mt-1">
           {dilutionCost > debtTotalCost
             ? '→ Si confías en el modelo, la deuda preserva más upside para los founders.'
             : '→ La dilución es más barata que los intereses proyectados — considerá equity.'}
@@ -1209,7 +1235,7 @@ function Module2({ state, setState }) {
         {['equity', 'debt', 'mixed'].map(mode => (
           <button key={mode}
             onClick={() => setState(s => ({ ...s, financingMode: mode }))}
-            className={`px-4 py-2 font-condensed font-bold text-sm uppercase tracking-wider ${state.financingMode === mode ? 'bg-gold text-black' : 'border border-white-20 text-white-60'}`}>
+            className={`px-4 py-2 font-condensed font-bold text-sm uppercase tracking-wider ${state.financingMode === mode ? 'bg-gold text-black' : 'border border-ink-20 text-ink-60'}`}>
             {mode === 'equity' ? 'Solo Equity' : mode === 'debt' ? 'Solo Deuda' : 'Mixto'}
           </button>
         ))}
@@ -1218,7 +1244,7 @@ function Module2({ state, setState }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Equity inputs */}
         {equityPath && (
-          <div className="border border-white-10 bg-white-5 p-4">
+          <div className="border border-ash bg-ink-5 p-4">
             <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Equity</p>
             <Slider label="Capital levantado ($K)" value={state.capitalNeeded} min={500} max={20000} step={100}
               onChange={v => setState(s => ({ ...s, capitalNeeded: v }))}
@@ -1230,21 +1256,21 @@ function Module2({ state, setState }) {
               onChange={v => setState(s => ({ ...s, currentEquityValue: v }))}
               format={v => `$${(v/1000).toFixed(1)}M`} />
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-condensed">
-              <div className="bg-white-5 p-2">
-                <p className="text-white-60">Pre-money EV</p>
-                <p className="text-xl font-bold text-white">${(state.currentEquityValue/1000).toFixed(1)}M</p>
+              <div className="bg-ink-5 p-2">
+                <p className="text-ink-60">Pre-money EV</p>
+                <p className="text-xl font-bold text-ink">${(state.currentEquityValue/1000).toFixed(1)}M</p>
               </div>
-              <div className="bg-white-5 p-2">
-                <p className="text-white-60">Post-money EV</p>
+              <div className="bg-ink-5 p-2">
+                <p className="text-ink-60">Post-money EV</p>
                 <p className="text-xl font-bold text-gold">${((state.currentEquityValue + state.capitalNeeded)/1000).toFixed(1)}M</p>
               </div>
-              <div className="bg-white-5 p-2">
-                <p className="text-white-60">Founder retains</p>
-                <p className="text-xl font-bold text-green-400">{fmtPct(1 - state.equityDilution)}</p>
+              <div className="bg-ink-5 p-2">
+                <p className="text-ink-60">Founder retains</p>
+                <p className="text-xl font-bold text-emerald-700">{fmtPct(1 - state.equityDilution)}</p>
               </div>
-              <div className="bg-white-5 p-2">
-                <p className="text-white-60">Founder EV @ exit</p>
-                <p className="text-xl font-bold text-white">{fmt(dcf.evPerpetual * (1 - state.equityDilution) * 1000)}</p>
+              <div className="bg-ink-5 p-2">
+                <p className="text-ink-60">Founder EV @ exit</p>
+                <p className="text-xl font-bold text-ink">{fmt(dcf.evPerpetual * (1 - state.equityDilution) * 1000)}</p>
               </div>
             </div>
           </div>
@@ -1252,7 +1278,7 @@ function Module2({ state, setState }) {
 
         {/* Debt inputs */}
         {debtPath && (
-          <div className="border border-white-10 bg-white-5 p-4">
+          <div className="border border-ash bg-ink-5 p-4">
             <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Deuda</p>
             <Slider label="Monto deuda ($K)" value={state.debtAmount} min={0} max={10000} step={100}
               onChange={v => setState(s => ({ ...s, debtAmount: v }))}
@@ -1265,7 +1291,7 @@ function Module2({ state, setState }) {
               format={v => `${v}y`} />
             <ResponsiveContainer width="100%" height={140}>
               <BarChart data={debtData}>
-                <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+                <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
                 <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}K`} />
                 <Tooltip content={<CustomTooltip />} />
@@ -1278,11 +1304,11 @@ function Module2({ state, setState }) {
       </div>
 
       {/* Equity value chart */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Valor equity founders vs inversores ($K)</p>
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={equityData}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
             <Tooltip content={<CustomTooltip />} />
@@ -1334,25 +1360,25 @@ function Module3({ state, setState }) {
     <div className="p-4 space-y-6">
       {/* Key output */}
       <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Conclusión del canal</p>
+        <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-1">Conclusión del canal</p>
         <p className="text-base font-condensed font-bold text-gold">
-          Mejor margen: <span className="text-white">{bestChannel?.channel}</span> con{' '}
-          <span className="text-white">{bestChannel?.['Gross Margin %'].toFixed(1)}%</span> de margen bruto.
-          Blended actual: <span className="text-white">{fmtPct(blended)}</span>
+          Mejor margen: <span className="text-ink">{bestChannel?.channel}</span> con{' '}
+          <span className="text-ink">{bestChannel?.['Gross Margin %'].toFixed(1)}%</span> de margen bruto.
+          Blended actual: <span className="text-ink">{fmtPct(blended)}</span>
         </p>
-        <p className="text-sm font-condensed text-white-60 mt-1">
+        <p className="text-sm font-condensed text-ink-60 mt-1">
           {`Mover 10% de ${Object.values(channelMargins).sort((a,b) => a.grossMarginPct - b.grossMarginPct)[0]?.label} → ${bestChannel?.channel} agrega ~${fmtPct(Math.abs(chartData[0]?.['Gross Margin %']/100 - Object.values(channelMargins).sort((a,b) => a.grossMarginPct - b.grossMarginPct)[0]?.grossMarginPct) * 0.1)} al margen blended.`}
         </p>
       </div>
 
       {/* Editable channel table */}
-      <div className="border border-white-10 bg-white-5 p-4 overflow-x-auto">
+      <div className="border border-ash bg-ink-5 p-4 overflow-x-auto">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Canales — editá cualquier celda</p>
         <table className="w-full text-xs font-condensed">
           <thead>
             <tr>
               {['Canal', 'Share %', 'Precio/u', 'COGS/u', 'Fee dist.', 'Margen bruto', 'Contrib/u'].map(h => (
-                <th key={h} className="text-right first:text-left text-white-60 font-normal pb-2 px-1">{h}</th>
+                <th key={h} className="text-right first:text-left text-ink-60 font-normal pb-2 px-1">{h}</th>
               ))}
             </tr>
           </thead>
@@ -1360,32 +1386,32 @@ function Module3({ state, setState }) {
             {Object.entries(state.channels).map(([key, ch]) => {
               const cm = channelMargins[key];
               return (
-                <tr key={key} className="border-t border-white-10">
-                  <td className="py-1.5 px-1 font-bold text-white">{ch.label || key}</td>
+                <tr key={key} className="border-t border-ash">
+                  <td className="py-1.5 px-1 font-bold text-ink">{ch.label || key}</td>
                   <td className="text-right py-1.5 px-1">
                     <input type="number" step="0.01" min="0" max="1" value={ch.share}
                       onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], share: parseFloat(e.target.value) || 0 } } }))}
-                      className="bg-white-10 text-white w-14 text-right px-1" />
+                      className="bg-ink-5 text-ink w-14 text-right px-1" />
                   </td>
                   <td className="text-right py-1.5 px-1">
                     <input type="number" step="0.01" min="0" value={ch.priceUSD}
                       onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], priceUSD: parseFloat(e.target.value) || 0 } } }))}
-                      className="bg-white-10 text-white w-14 text-right px-1" />
+                      className="bg-ink-5 text-ink w-14 text-right px-1" />
                   </td>
                   <td className="text-right py-1.5 px-1">
                     <input type="number" step="0.01" min="0" value={ch.cogsUSD}
                       onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], cogsUSD: parseFloat(e.target.value) || 0 } } }))}
-                      className="bg-white-10 text-white w-14 text-right px-1" />
+                      className="bg-ink-5 text-ink w-14 text-right px-1" />
                   </td>
                   <td className="text-right py-1.5 px-1">
                     <input type="number" step="0.01" min="0" max="0.99" value={ch.distribFee}
                       onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], distribFee: parseFloat(e.target.value) || 0 } } }))}
-                      className="bg-white-10 text-white w-14 text-right px-1" />
+                      className="bg-ink-5 text-ink w-14 text-right px-1" />
                   </td>
-                  <td className={`text-right py-1.5 px-1 font-bold ${cm.grossMarginPct > 0.3 ? 'text-green-400' : cm.grossMarginPct > 0.1 ? 'text-gold' : 'text-red-400'}`}>
+                  <td className={`text-right py-1.5 px-1 font-bold ${cm.grossMarginPct > 0.3 ? 'text-emerald-700' : cm.grossMarginPct > 0.1 ? 'text-gold' : 'text-red-600'}`}>
                     {fmtPct(cm.grossMarginPct)}
                   </td>
-                  <td className={`text-right py-1.5 px-1 ${cm.contribPerUnit > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <td className={`text-right py-1.5 px-1 ${cm.contribPerUnit > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                     ${cm.contribPerUnit.toFixed(3)}
                   </td>
                 </tr>
@@ -1393,19 +1419,19 @@ function Module3({ state, setState }) {
             })}
           </tbody>
         </table>
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white-20">
-          <span className="text-xs font-condensed text-white-60">Margen blended</span>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-ink-20">
+          <span className="text-xs font-condensed text-ink-60">Margen blended</span>
           <span className="text-xl font-condensed font-bold text-gold">{fmtPct(blended)}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Margin chart */}
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Margen bruto por canal</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} layout="vertical">
-              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" horizontal={false} />
               <XAxis type="number" tick={{ fill: MUTED, fontSize: 10 }} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="channel" tick={{ fill: '#fff', fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} width={80} />
               <Tooltip content={<CustomTooltip />} />
@@ -1419,37 +1445,37 @@ function Module3({ state, setState }) {
         </div>
 
         {/* Shift simulator */}
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Simulador de mix — "peso marginal"</p>
           <div className="space-y-3 text-xs font-condensed">
             <div className="flex gap-2 items-center">
-              <span className="text-white-60 w-12">From</span>
+              <span className="text-ink-60 w-12">From</span>
               <select value={shiftFrom} onChange={e => setShiftFrom(e.target.value)}
-                className="bg-white-10 text-white px-2 py-1 flex-1">
+                className="bg-white border border-ash text-ink px-2 py-1 flex-1">
                 {Object.entries(state.channels).map(([k, ch]) => <option key={k} value={k}>{ch.label}</option>)}
               </select>
             </div>
             <div className="flex gap-2 items-center">
-              <span className="text-white-60 w-12">To</span>
+              <span className="text-ink-60 w-12">To</span>
               <select value={shiftTo} onChange={e => setShiftTo(e.target.value)}
-                className="bg-white-10 text-white px-2 py-1 flex-1">
+                className="bg-white border border-ash text-ink px-2 py-1 flex-1">
                 {Object.entries(state.channels).map(([k, ch]) => <option key={k} value={k}>{ch.label}</option>)}
               </select>
             </div>
             <Slider label="Share a mover" value={shiftPct} min={0.01} max={0.20} step={0.01}
               onChange={setShiftPct} format={v => fmtPct(v)} />
-            <div className="border border-white-20 p-3 mt-2">
+            <div className="border border-ink-20 p-3 mt-2">
               <div className="flex justify-between mb-1">
-                <span className="text-white-60">Margen blended actual</span>
-                <span className="text-white font-bold">{fmtPct(blended)}</span>
+                <span className="text-ink-60">Margen blended actual</span>
+                <span className="text-ink font-bold">{fmtPct(blended)}</span>
               </div>
               <div className="flex justify-between mb-1">
-                <span className="text-white-60">Margen blended nuevo</span>
-                <span className="text-white font-bold">{fmtPct(shiftedBlended)}</span>
+                <span className="text-ink-60">Margen blended nuevo</span>
+                <span className="text-ink font-bold">{fmtPct(shiftedBlended)}</span>
               </div>
-              <div className="flex justify-between border-t border-white-20 pt-1 mt-1">
-                <span className="text-white-60">Delta</span>
-                <span className={`font-bold text-lg ${marginDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div className="flex justify-between border-t border-ink-20 pt-1 mt-1">
+                <span className="text-ink-60">Delta</span>
+                <span className={`font-bold text-lg ${marginDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                   {marginDelta >= 0 ? '+' : ''}{fmtPct(marginDelta, 2)}
                 </span>
               </div>
@@ -1509,26 +1535,26 @@ function Module4({ state, setState }) {
         ].map(({ key, label, desc }) => (
           <button key={key}
             onClick={() => applyPreset(key)}
-            className="flex-1 border border-white-20 bg-white-5 p-3 text-left hover:border-gold-border transition-colors">
-            <p className="font-condensed font-bold text-sm text-white">{label}</p>
-            <p className="font-condensed text-xs text-white-60 mt-0.5">{desc}</p>
+            className="flex-1 border border-ink-20 bg-ink-5 p-3 text-left hover:border-gold-border transition-colors">
+            <p className="font-condensed font-bold text-sm text-ink">{label}</p>
+            <p className="font-condensed text-xs text-ink-60 mt-0.5">{desc}</p>
           </button>
         ))}
       </div>
 
       {/* Key output */}
       <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Impacto de crisis cambiaria</p>
+        <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-1">Impacto de crisis cambiaria</p>
         <p className="text-base font-condensed font-bold text-gold">
           Bajo crisis (80% dev.), revenue 2030 cae{' '}
-          <span className="text-red-400">${(revenueImpact / 1000).toFixed(0)}M</span> vs base.
+          <span className="text-red-600">${(revenueImpact / 1000).toFixed(0)}M</span> vs base.
           Necesitás ese monto en USD adicionales para mantener operaciones.
         </p>
       </div>
 
       {/* Sliders */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Variables macro Argentina</p>
           <Slider label="Inflación ARS anual" value={state.arInflation} min={0.10} max={2.00} step={0.01}
             onChange={v => setState(s => ({ ...s, arInflation: v }))} format={v => fmtPct(v)} />
@@ -1537,7 +1563,7 @@ function Module4({ state, setState }) {
           <Slider label="Tipo de cambio actual (ARS/USD)" value={state.arFX} min={500} max={5000} step={50}
             onChange={v => setState(s => ({ ...s, arFX: v }))} format={v => v.toLocaleString('en')} />
         </div>
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Variables macro globales</p>
           <Slider label="Inflación LATAM" value={state.latamInflation} min={0.03} max={0.30} step={0.005}
             onChange={v => setState(s => ({ ...s, latamInflation: v }))} format={v => fmtPct(v)} />
@@ -1552,9 +1578,9 @@ function Module4({ state, setState }) {
               { label: 'FX 2030', value: `${(state.arFX * Math.pow(1 + state.arFXDevaluation, 5)).toLocaleString('en', {maximumFractionDigits: 0})} ARS` },
               { label: 'COGS impact', value: fmtPct(state.arInflation * 0.6) + ' adj' },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-white-5 p-2">
-                <p className="text-white-60">{label}</p>
-                <p className="text-white font-bold">{value}</p>
+              <div key={label} className="bg-ink-5 p-2">
+                <p className="text-ink-60">{label}</p>
+                <p className="text-ink font-bold">{value}</p>
               </div>
             ))}
           </div>
@@ -1562,16 +1588,16 @@ function Module4({ state, setState }) {
       </div>
 
       {/* Revenue comparison chart */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue USD bajo distintos escenarios FX</p>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={macroData}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
             <YAxis yAxisId="rev" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
             <YAxis yAxisId="margin" orientation="right" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[-50, 20]} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
             <Line yAxisId="rev" dataKey="Rev (Base FX)" stroke={GREEN} strokeWidth={2} strokeDasharray="4 2" dot={false} />
             <Line yAxisId="rev" dataKey="Rev (Current FX)" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
             <Line yAxisId="rev" dataKey="Rev (Crisis FX)" stroke={RED} strokeWidth={2} strokeDasharray="2 2" dot={false} />
@@ -1591,23 +1617,23 @@ function GlobalControls({ state, setState }) {
   const dcf = useMemo(() => calcDCF(state), [state]);
 
   return (
-    <div className="flex items-center gap-4 px-4 py-2 border-b border-white-10 flex-wrap">
+    <div className="flex items-center gap-4 px-4 py-2 border-b border-ash flex-wrap">
       {/* Scenario */}
       <div className="flex gap-1">
         {['best', 'base', 'worst'].map(sc => (
           <button key={sc}
             onClick={() => setState(s => ({ ...s, scenario: sc }))}
-            className={`px-3 py-1 text-xs font-condensed font-bold uppercase tracking-wider ${state.scenario === sc ? 'bg-gold text-black' : 'border border-white-20 text-white-60'}`}>
+            className={`px-3 py-1 text-xs font-condensed font-bold uppercase tracking-wider ${state.scenario === sc ? 'bg-gold text-black' : 'border border-ink-20 text-ink-60'}`}>
             {sc === 'best' ? 'Best' : sc === 'base' ? 'Base' : 'Worst'}
           </button>
         ))}
       </div>
       {/* Quick stats */}
       <div className="flex gap-4 ml-auto text-xs font-condensed">
-        <span className="text-white-60">Rev 2030: <span className="text-gold font-bold">{fmt(fin[2030]?.revenue * 1000)}</span></span>
-        <span className="text-white-60">EBITDA 2030: <span className={fin[2030]?.ebitda >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>{fmt(fin[2030]?.ebitda * 1000)}</span></span>
-        <span className="text-white-60">EV: <span className="text-gold font-bold">{fmt(dcf.evPerpetual * 1000)}</span></span>
-        <span className="text-white-60">WACC: <span className="text-white font-bold">{fmtPct(state.wacc)}</span></span>
+        <span className="text-ink-60">Rev 2030: <span className="text-gold font-bold">{fmt(fin[2030]?.revenue * 1000)}</span></span>
+        <span className="text-ink-60">EBITDA 2030: <span className={fin[2030]?.ebitda >= 0 ? 'text-emerald-700 font-bold' : 'text-red-600 font-bold'}>{fmt(fin[2030]?.ebitda * 1000)}</span></span>
+        <span className="text-ink-60">EV: <span className="text-gold font-bold">{fmt(dcf.evPerpetual * 1000)}</span></span>
+        <span className="text-ink-60">WACC: <span className="text-ink font-bold">{fmtPct(state.wacc)}</span></span>
       </div>
     </div>
   );
@@ -1692,74 +1718,74 @@ function Module6({ state, setState }) {
 
       {/* Key output */}
       <div className="border border-gold-border bg-gold-dim p-4">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-2">¿Me alcanza la caja?</p>
+        <p className="text-xs font-condensed text-ink-60 uppercase tracking-widest mb-2">¿Me alcanza la caja?</p>
         <div className="flex gap-8 flex-wrap items-end">
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">Capital necesario</p>
-            <p className={`text-4xl font-condensed font-bold ${capitalGap > 0 ? 'text-red-400' : 'text-green-400'}`}>
+            <p className="text-xs text-ink-60 font-condensed uppercase">Capital necesario</p>
+            <p className={`text-4xl font-condensed font-bold ${capitalGap > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
               {capitalGap > 0 ? fmt(capitalGap * 1000) : 'Autosuficiente'}
             </p>
-            {capitalGap > 0 && <p className="text-xs text-white-60 font-condensed mt-1">Pico de necesidad en {needYear} (con 20% buffer)</p>}
+            {capitalGap > 0 && <p className="text-xs text-ink-60 font-condensed mt-1">Pico de necesidad en {needYear} (con 20% buffer)</p>}
           </div>
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">Break-even caja</p>
-            <p className="text-4xl font-condensed font-bold text-white">{breakEvenYear || '> 2030'}</p>
+            <p className="text-xs text-ink-60 font-condensed uppercase">Break-even caja</p>
+            <p className="text-4xl font-condensed font-bold text-ink">{breakEvenYear || '> 2030'}</p>
           </div>
           <div>
-            <p className="text-xs text-white-60 font-condensed uppercase">Ciclo de caja (días)</p>
-            <p className={`text-4xl font-condensed font-bold ${ccc > 40 ? 'text-red-400' : ccc > 20 ? 'text-gold' : 'text-green-400'}`}>{ccc}d</p>
-            <p className="text-xs text-white-60 font-condensed">DSO + DIO − DPO</p>
+            <p className="text-xs text-ink-60 font-condensed uppercase">Ciclo de caja (días)</p>
+            <p className={`text-4xl font-condensed font-bold ${ccc > 40 ? 'text-red-600' : ccc > 20 ? 'text-gold' : 'text-emerald-700'}`}>{ccc}d</p>
+            <p className="text-xs text-ink-60 font-condensed">DSO + DIO − DPO</p>
           </div>
           {dscr !== null && (
             <div>
-              <p className="text-xs text-white-60 font-condensed uppercase">DSCR 2027</p>
-              <p className={`text-4xl font-condensed font-bold ${canRepayDebt ? 'text-green-400' : 'text-red-400'}`}>{dscr.toFixed(1)}x</p>
-              <p className="text-xs text-white-60 font-condensed">{canRepayDebt ? 'Podés pagar la deuda' : '⚠ Insuficiente para servicio'}</p>
+              <p className="text-xs text-ink-60 font-condensed uppercase">DSCR 2027</p>
+              <p className={`text-4xl font-condensed font-bold ${canRepayDebt ? 'text-emerald-700' : 'text-red-600'}`}>{dscr.toFixed(1)}x</p>
+              <p className="text-xs text-ink-60 font-condensed">{canRepayDebt ? 'Podés pagar la deuda' : '⚠ Insuficiente para servicio'}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* The three levers */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-4 tracking-wider">Las 3 palancas de caja — tocá y ves el impacto instantáneo</p>
         <div className="grid grid-cols-3 gap-6">
           <div>
             <div className="text-center mb-3">
-              <p className="text-xs font-condensed text-white-60 uppercase">DSO — Días a Cobrar</p>
-              <p className={`text-5xl font-condensed font-black ${state.daysAR > 45 ? 'text-red-400' : state.daysAR > 30 ? 'text-gold' : 'text-green-400'}`}>{state.daysAR}d</p>
-              <p className="text-xs text-white-60 font-condensed">Cuentas a cobrar</p>
+              <p className="text-xs font-condensed text-ink-60 uppercase">DSO — Días a Cobrar</p>
+              <p className={`text-5xl font-condensed font-black ${state.daysAR > 45 ? 'text-red-600' : state.daysAR > 30 ? 'text-gold' : 'text-emerald-700'}`}>{state.daysAR}d</p>
+              <p className="text-xs text-ink-60 font-condensed">Cuentas a cobrar</p>
             </div>
             <input type="range" min={7} max={120} step={1} value={state.daysAR}
               onChange={e => setState(s => ({ ...s, daysAR: parseInt(e.target.value) }))}
               className="w-full" />
-            <div className="flex justify-between text-xs text-white-20 font-condensed mt-1">
+            <div className="flex justify-between text-xs text-ink-20 font-condensed mt-1">
               <span>7d (contado)</span><span>120d (crédito extendido)</span>
             </div>
           </div>
           <div>
             <div className="text-center mb-3">
-              <p className="text-xs font-condensed text-white-60 uppercase">DIO — Días de Inventario</p>
-              <p className={`text-5xl font-condensed font-black ${state.daysInventory > 30 ? 'text-red-400' : state.daysInventory > 15 ? 'text-gold' : 'text-green-400'}`}>{state.daysInventory}d</p>
-              <p className="text-xs text-white-60 font-condensed">Stock en depósito</p>
+              <p className="text-xs font-condensed text-ink-60 uppercase">DIO — Días de Inventario</p>
+              <p className={`text-5xl font-condensed font-black ${state.daysInventory > 30 ? 'text-red-600' : state.daysInventory > 15 ? 'text-gold' : 'text-emerald-700'}`}>{state.daysInventory}d</p>
+              <p className="text-xs text-ink-60 font-condensed">Stock en depósito</p>
             </div>
             <input type="range" min={5} max={90} step={1} value={state.daysInventory}
               onChange={e => setState(s => ({ ...s, daysInventory: parseInt(e.target.value) }))}
               className="w-full" />
-            <div className="flex justify-between text-xs text-white-20 font-condensed mt-1">
+            <div className="flex justify-between text-xs text-ink-20 font-condensed mt-1">
               <span>5d (just-in-time)</span><span>90d (buffer alto)</span>
             </div>
           </div>
           <div>
             <div className="text-center mb-3">
-              <p className="text-xs font-condensed text-white-60 uppercase">DPO — Días a Pagar</p>
-              <p className={`text-5xl font-condensed font-black ${state.daysAP < 20 ? 'text-red-400' : state.daysAP < 45 ? 'text-gold' : 'text-green-400'}`}>{state.daysAP}d</p>
-              <p className="text-xs text-white-60 font-condensed">Crédito de proveedor</p>
+              <p className="text-xs font-condensed text-ink-60 uppercase">DPO — Días a Pagar</p>
+              <p className={`text-5xl font-condensed font-black ${state.daysAP < 20 ? 'text-red-600' : state.daysAP < 45 ? 'text-gold' : 'text-emerald-700'}`}>{state.daysAP}d</p>
+              <p className="text-xs text-ink-60 font-condensed">Crédito de proveedor</p>
             </div>
             <input type="range" min={0} max={120} step={1} value={state.daysAP}
               onChange={e => setState(s => ({ ...s, daysAP: parseInt(e.target.value) }))}
               className="w-full" />
-            <div className="flex justify-between text-xs text-white-20 font-condensed mt-1">
+            <div className="flex justify-between text-xs text-ink-20 font-condensed mt-1">
               <span>0d (pago anticipado)</span><span>120d (crédito máximo)</span>
             </div>
           </div>
@@ -1767,15 +1793,15 @@ function Module6({ state, setState }) {
       </div>
 
       {/* Cumulative cash position */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Posición de caja acumulada ($K USD)</p>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={cashData}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 || v <= -1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
             <ReferenceLine y={0} stroke={RED} strokeDasharray="4 2" strokeWidth={1.5} />
             <Bar dataKey="FCF Anual" fill={BLUE} fillOpacity={0.6} />
             <Line dataKey="Caja Acumulada" stroke={GOLD} strokeWidth={2.5} dot={{ fill: GOLD, r: 4 }} />
@@ -1784,16 +1810,16 @@ function Module6({ state, setState }) {
       </div>
 
       {/* Working capital breakdown */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Capital de trabajo — AR / Inventario / AP ($K USD)</p>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={wcData}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 || v <= -1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
-            <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
+            <ReferenceLine y={0} stroke="rgba(29,29,27,0.2)" />
             <Bar dataKey="Cuentas a Cobrar" stackId="wc" fill={BLUE} />
             <Bar dataKey="Inventario" stackId="wc" fill={PURPLE} />
             <Bar dataKey="Cuentas a Pagar" stackId="wc" fill={GREEN} />
@@ -1803,13 +1829,13 @@ function Module6({ state, setState }) {
 
       {/* Sensitivity: DSO vs DPO impact on cash */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad DSO → Caja acumulada 2030 ($K)</p>
           <table className="w-full text-xs font-condensed">
             <thead><tr>
-              <th className="text-left text-white-40 pb-2">DSO</th>
-              <th className="text-right text-white-40 pb-2">Caja 2030</th>
-              <th className="text-right text-white-40 pb-2">vs actual</th>
+              <th className="text-left text-ink-40 pb-2">DSO</th>
+              <th className="text-right text-ink-40 pb-2">Caja 2030</th>
+              <th className="text-right text-ink-40 pb-2">vs actual</th>
             </tr></thead>
             <tbody>
               {sensitDSO.map(row => {
@@ -1817,22 +1843,22 @@ function Module6({ state, setState }) {
                 const delta = row.peakCash - base;
                 return (
                   <tr key={row.dso} className={row.dso === state.daysAR ? 'bg-gold-dim' : ''}>
-                    <td className={`py-1 ${row.dso === state.daysAR ? 'text-gold font-bold' : 'text-white-60'}`}>{row.dso}d</td>
-                    <td className={`text-right ${row.peakCash >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(row.peakCash * 1000)}</td>
-                    <td className={`text-right ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>{delta >= 0 ? '+' : ''}{fmt(delta * 1000)}</td>
+                    <td className={`py-1 ${row.dso === state.daysAR ? 'text-gold font-bold' : 'text-ink-60'}`}>{row.dso}d</td>
+                    <td className={`text-right ${row.peakCash >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt(row.peakCash * 1000)}</td>
+                    <td className={`text-right ${delta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{delta >= 0 ? '+' : ''}{fmt(delta * 1000)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        <div className="border border-white-10 bg-white-5 p-4">
+        <div className="border border-ash bg-ink-5 p-4">
           <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Sensibilidad DPO → Caja acumulada 2030 ($K)</p>
           <table className="w-full text-xs font-condensed">
             <thead><tr>
-              <th className="text-left text-white-40 pb-2">DPO</th>
-              <th className="text-right text-white-40 pb-2">Caja 2030</th>
-              <th className="text-right text-white-40 pb-2">vs actual</th>
+              <th className="text-left text-ink-40 pb-2">DPO</th>
+              <th className="text-right text-ink-40 pb-2">Caja 2030</th>
+              <th className="text-right text-ink-40 pb-2">vs actual</th>
             </tr></thead>
             <tbody>
               {sensitDPO.map(row => {
@@ -1840,9 +1866,9 @@ function Module6({ state, setState }) {
                 const delta = row.peakCash - base;
                 return (
                   <tr key={row.dpo} className={row.dpo === state.daysAP ? 'bg-gold-dim' : ''}>
-                    <td className={`py-1 ${row.dpo === state.daysAP ? 'text-gold font-bold' : 'text-white-60'}`}>{row.dpo}d</td>
-                    <td className={`text-right ${row.peakCash >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt(row.peakCash * 1000)}</td>
-                    <td className={`text-right ${delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>{delta >= 0 ? '+' : ''}{fmt(delta * 1000)}</td>
+                    <td className={`py-1 ${row.dpo === state.daysAP ? 'text-gold font-bold' : 'text-ink-60'}`}>{row.dpo}d</td>
+                    <td className={`text-right ${row.peakCash >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt(row.peakCash * 1000)}</td>
+                    <td className={`text-right ${delta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{delta >= 0 ? '+' : ''}{fmt(delta * 1000)}</td>
                   </tr>
                 );
               })}
@@ -1911,13 +1937,13 @@ function ModulePL({ state, setState }) {
           const gpPct = rev > 0 ? gp / rev : 0;
           const ebitdaPct = rev > 0 ? ebitda / rev : 0;
           return (
-            <div key={y} className="border border-white-10 bg-white-5 p-3">
-              <p className="text-xs font-condensed text-white-40 uppercase mb-1">{y}</p>
-              <p className="text-2xl font-condensed font-black text-white">{fmt(rev * 1000)}</p>
+            <div key={y} className="border border-ash bg-ink-5 p-3">
+              <p className="text-xs font-condensed text-ink-40 uppercase mb-1">{y}</p>
+              <p className="text-2xl font-condensed font-black text-ink">{fmt(rev * 1000)}</p>
               <p className="text-xs font-condensed mt-1">
-                <span className="text-green-400">GP {(gpPct*100).toFixed(0)}%</span>
-                <span className="text-white-40 mx-1">·</span>
-                <span className={ebitda >= 0 ? 'text-gold' : 'text-red-400'}>EBITDA {(ebitdaPct*100).toFixed(0)}%</span>
+                <span className="text-emerald-700">GP {(gpPct*100).toFixed(0)}%</span>
+                <span className="text-ink-40 mx-1">·</span>
+                <span className={ebitda >= 0 ? 'text-gold' : 'text-red-600'}>EBITDA {(ebitdaPct*100).toFixed(0)}%</span>
               </p>
             </div>
           );
@@ -1928,20 +1954,20 @@ function ModulePL({ state, setState }) {
 
         {/* LEFT: expense lines editor */}
         <div className="lg:col-span-2 space-y-3">
-          <div className="border border-white-10 bg-white-5 p-4">
+          <div className="border border-ash bg-ink-5 p-4">
             <div className="flex justify-between items-center mb-3">
               <p className="text-xs font-condensed uppercase text-gold tracking-wider">Estructura de costos</p>
-              <span className="text-xs font-condensed text-white-40">% de revenue neto</span>
+              <span className="text-xs font-condensed text-ink-40">% de revenue neto</span>
             </div>
 
             {/* COGS — derived, not editable here */}
-            <div className="mb-3 pb-3 border-b border-white-10">
+            <div className="mb-3 pb-3 border-b border-ash">
               {activeMarkets.map(mkt => {
                 const gpPct = mkt.priceUSD > 0 ? ((mkt.priceUSD - mkt.cogsUSD) / mkt.priceUSD * 100) : 0;
                 return (
                   <div key={mkt.code} className="flex justify-between items-center py-0.5">
-                    <span className="text-xs font-condensed text-white-60">{mkt.flag} COGS {mkt.country}</span>
-                    <span className="text-xs font-condensed text-red-400 font-bold">
+                    <span className="text-xs font-condensed text-ink-60">{mkt.flag} COGS {mkt.country}</span>
+                    <span className="text-xs font-condensed text-red-600 font-bold">
                       {(mkt.cogsUSD / mkt.priceUSD * 100).toFixed(0)}% · GP {gpPct.toFixed(0)}%
                     </span>
                   </div>
@@ -1950,7 +1976,7 @@ function ModulePL({ state, setState }) {
             </div>
 
             {/* Editable OpEx lines */}
-            <p className="text-xs font-condensed text-white-40 uppercase tracking-wider mb-2">Gastos operativos (OpEx)</p>
+            <p className="text-xs font-condensed text-ink-40 uppercase tracking-wider mb-2">Gastos operativos (OpEx)</p>
             {state.expenseLines.map(line => (
               <div key={line.id} className="mb-2">
                 <div className="flex items-center gap-2 mb-1">
@@ -1958,19 +1984,19 @@ function ModulePL({ state, setState }) {
                   <input
                     type="text" value={line.label}
                     onChange={e => setExpLine(line.id, 'label', e.target.value)}
-                    className="bg-transparent text-xs font-condensed text-white-60 flex-1 min-w-0 border-b border-transparent hover:border-white-20 focus:border-gold outline-none"
+                    className="bg-transparent text-xs font-condensed text-ink-60 flex-1 min-w-0 border-b border-transparent hover:border-ink-20 focus:border-gold outline-none"
                   />
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <input
                       type="number" value={(line.pct * 100).toFixed(1)}
                       min={0} max={100} step={0.5}
                       onChange={e => setExpLine(line.id, 'pct', (parseFloat(e.target.value) || 0) / 100)}
-                      className="bg-black border border-white-20 text-right px-1 py-0.5 font-condensed font-bold text-sm w-14"
+                      className="bg-white border border-ash text-right px-1 py-0.5 font-condensed font-bold text-sm w-14"
                       style={{ color: line.color }}
                     />
-                    <span className="text-white-40 text-xs font-condensed">%</span>
+                    <span className="text-ink-40 text-xs font-condensed">%</span>
                     <button onClick={() => removeExpLine(line.id)}
-                      className="text-white-20 hover:text-red-400 text-xs ml-1">×</button>
+                      className="text-ink-20 hover:text-red-600 text-xs ml-1">×</button>
                   </div>
                 </div>
                 <input type="range" min={0} max={40} step={0.5}
@@ -1981,23 +2007,23 @@ function ModulePL({ state, setState }) {
             ))}
 
             <button onClick={addExpLine}
-              className="mt-2 text-xs font-condensed text-white-40 hover:text-gold border border-dashed border-white-20 hover:border-gold px-3 py-1 w-full">
+              className="mt-2 text-xs font-condensed text-ink-40 hover:text-gold border border-dashed border-ink-20 hover:border-gold px-3 py-1 w-full">
               + Agregar línea
             </button>
 
             {/* Totals */}
-            <div className="mt-3 pt-3 border-t border-white-10 space-y-1">
+            <div className="mt-3 pt-3 border-t border-ash space-y-1">
               <div className="flex justify-between text-xs font-condensed">
-                <span className="text-white-40 uppercase">Total OpEx</span>
-                <span className="text-white font-bold">{(totalOpExPct * 100).toFixed(1)}%</span>
+                <span className="text-ink-40 uppercase">Total OpEx</span>
+                <span className="text-ink font-bold">{(totalOpExPct * 100).toFixed(1)}%</span>
               </div>
               {activeMarkets.map(mkt => {
                 const blendedCogs = mkt.priceUSD > 0 ? mkt.cogsUSD / mkt.priceUSD : 0;
                 const ebitdaPct = 1 - blendedCogs - totalOpExPct;
                 return (
                   <div key={mkt.code} className="flex justify-between text-xs font-condensed">
-                    <span className="text-white-40">{mkt.flag} EBITDA {mkt.country}</span>
-                    <span className={ebitdaPct >= 0 ? 'text-gold font-bold' : 'text-red-400 font-bold'}>
+                    <span className="text-ink-40">{mkt.flag} EBITDA {mkt.country}</span>
+                    <span className={ebitdaPct >= 0 ? 'text-gold font-bold' : 'text-red-600 font-bold'}>
                       {(ebitdaPct * 100).toFixed(1)}%
                     </span>
                   </div>
@@ -2011,18 +2037,18 @@ function ModulePL({ state, setState }) {
         <div className="lg:col-span-3 overflow-x-auto">
           <table className="w-full text-xs font-condensed">
             <thead>
-              <tr className="border-b border-white-10">
-                <th className="text-left text-white-40 py-2 pr-3 font-normal uppercase tracking-wider w-40">Línea</th>
+              <tr className="border-b border-ash">
+                <th className="text-left text-ink-40 py-2 pr-3 font-normal uppercase tracking-wider w-40">Línea</th>
                 {YEARS.map(y => (
-                  <th key={y} className="text-right text-white-40 py-2 px-2 font-normal">{y}</th>
+                  <th key={y} className="text-right text-ink-40 py-2 px-2 font-normal">{y}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {/* Revenue by country */}
               {activeMarkets.map(mkt => (
-                <tr key={mkt.code} className="border-b border-white-5">
-                  <td className="py-1 pr-3 text-white-40">{mkt.flag} Rev {mkt.country}</td>
+                <tr key={mkt.code} className="border-b border-ash">
+                  <td className="py-1 pr-3 text-ink-40">{mkt.flag} Rev {mkt.country}</td>
                   {YEARS.map(y => (
                     <td key={y} className="text-right px-2 py-1" style={{ color: mkt.color }}>
                       {revenueByCountry.find(r => r.year === y)?.[mkt.country] > 0
@@ -2034,32 +2060,32 @@ function ModulePL({ state, setState }) {
               ))}
 
               {/* Total Revenue */}
-              <tr className="border-b border-white-20 bg-white-5">
-                <td className="py-1.5 pr-3 font-bold text-white uppercase">Revenue Total</td>
+              <tr className="border-b border-ink-20 bg-ink-5">
+                <td className="py-1.5 pr-3 font-bold text-ink uppercase">Revenue Total</td>
                 {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1.5 font-bold text-white">{fmt((fin[y]?.revenue||0)*1000)}</td>
+                  <td key={y} className="text-right px-2 py-1.5 font-bold text-ink">{fmt((fin[y]?.revenue||0)*1000)}</td>
                 ))}
               </tr>
 
               {/* COGS */}
-              <tr className="border-b border-white-5">
-                <td className="py-1 pr-3 text-red-400">COGS</td>
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-red-600">COGS</td>
                 {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-red-400">({fmt((fin[y]?.cogs||0)*1000)})</td>
+                  <td key={y} className="text-right px-2 py-1 text-red-600">({fmt((fin[y]?.cogs||0)*1000)})</td>
                 ))}
               </tr>
 
               {/* Gross Profit */}
-              <tr className="border-b border-white-20 bg-white-5">
-                <td className="py-1.5 pr-3 font-bold text-white">Margen Bruto</td>
+              <tr className="border-b border-ink-20 bg-ink-5">
+                <td className="py-1.5 pr-3 font-bold text-ink">Margen Bruto</td>
                 {YEARS.map(y => {
                   const rev = fin[y]?.revenue || 0;
                   const gp = fin[y]?.grossProfit || 0;
                   const pct = rev > 0 ? (gp/rev*100).toFixed(0) : 0;
                   return (
-                    <td key={y} className="text-right px-2 py-1.5 font-bold text-green-400">
+                    <td key={y} className="text-right px-2 py-1.5 font-bold text-emerald-700">
                       {fmt(gp*1000)}
-                      <span className="text-white-40 font-normal ml-1 text-xs">{pct}%</span>
+                      <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
                     </td>
                   );
                 })}
@@ -2067,14 +2093,14 @@ function ModulePL({ state, setState }) {
 
               {/* Each OpEx line */}
               {state.expenseLines.map(line => (
-                <tr key={line.id} className="border-b border-white-5">
+                <tr key={line.id} className="border-b border-ash">
                   <td className="py-1 pr-3 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 inline-block" style={{ background: line.color }} />
-                    <span className="text-white-60">{line.label}</span>
-                    <span className="text-white-20">({(line.pct*100).toFixed(1)}%)</span>
+                    <span className="text-ink-60">{line.label}</span>
+                    <span className="text-ink-20">({(line.pct*100).toFixed(1)}%)</span>
                   </td>
                   {YEARS.map(y => (
-                    <td key={y} className="text-right px-2 py-1 text-white-40">
+                    <td key={y} className="text-right px-2 py-1 text-ink-40">
                       ({fmt((fin[y]?.revenue||0) * line.pct * 1000)})
                     </td>
                   ))}
@@ -2082,38 +2108,38 @@ function ModulePL({ state, setState }) {
               ))}
 
               {/* EBITDA */}
-              <tr className="border-b border-white-20 bg-white-5">
-                <td className="py-1.5 pr-3 font-bold text-white">EBITDA</td>
+              <tr className="border-b border-ink-20 bg-ink-5">
+                <td className="py-1.5 pr-3 font-bold text-ink">EBITDA</td>
                 {YEARS.map(y => {
                   const rev = fin[y]?.revenue || 0;
                   const ebitda = fin[y]?.ebitda || 0;
                   const pct = rev > 0 ? (ebitda/rev*100).toFixed(0) : 0;
                   return (
-                    <td key={y} className={`text-right px-2 py-1.5 font-bold ${ebitda >= 0 ? 'text-gold' : 'text-red-400'}`}>
+                    <td key={y} className={`text-right px-2 py-1.5 font-bold ${ebitda >= 0 ? 'text-gold' : 'text-red-600'}`}>
                       {ebitda < 0 ? `(${fmt(Math.abs(ebitda)*1000)})` : fmt(ebitda*1000)}
-                      <span className="text-white-40 font-normal ml-1 text-xs">{pct}%</span>
+                      <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
                     </td>
                   );
                 })}
               </tr>
 
               {/* D&A */}
-              <tr className="border-b border-white-5">
-                <td className="py-1 pr-3 text-white-40">D&A</td>
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-ink-40">D&A</td>
                 {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-white-40">
+                  <td key={y} className="text-right px-2 py-1 text-ink-40">
                     {y > 2025 ? `(${fmt((fin[y]?.depreciation||0)*1000)})` : '—'}
                   </td>
                 ))}
               </tr>
 
               {/* EBIT */}
-              <tr className="border-b border-white-10">
-                <td className="py-1 pr-3 text-white-60">EBIT</td>
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-ink-60">EBIT</td>
                 {YEARS.map(y => {
                   const ebit = fin[y]?.ebit || 0;
                   return (
-                    <td key={y} className={`text-right px-2 py-1 ${ebit >= 0 ? 'text-white' : 'text-red-400'}`}>
+                    <td key={y} className={`text-right px-2 py-1 ${ebit >= 0 ? 'text-ink' : 'text-red-600'}`}>
                       {ebit < 0 ? `(${fmt(Math.abs(ebit)*1000)})` : fmt(ebit*1000)}
                     </td>
                   );
@@ -2121,26 +2147,26 @@ function ModulePL({ state, setState }) {
               </tr>
 
               {/* Tax */}
-              <tr className="border-b border-white-5">
-                <td className="py-1 pr-3 text-white-40">Impuestos ({(state.taxRate*100).toFixed(0)}%)</td>
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-ink-40">Impuestos ({(state.taxRate*100).toFixed(0)}%)</td>
                 {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-white-40">
+                  <td key={y} className="text-right px-2 py-1 text-ink-40">
                     {fin[y]?.tax > 0 ? `(${fmt(fin[y].tax*1000)})` : '—'}
                   </td>
                 ))}
               </tr>
 
               {/* Net Income */}
-              <tr className="bg-white-5">
-                <td className="py-2 pr-3 font-bold text-white uppercase">Net Income</td>
+              <tr className="bg-ink-5">
+                <td className="py-2 pr-3 font-bold text-ink uppercase">Net Income</td>
                 {YEARS.map(y => {
                   const ni = (fin[y]?.ebit || 0) - (fin[y]?.tax || 0);
                   const rev = fin[y]?.revenue || 0;
                   const pct = rev > 0 ? (ni/rev*100).toFixed(0) : 0;
                   return (
-                    <td key={y} className={`text-right px-2 py-2 font-bold ${ni >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <td key={y} className={`text-right px-2 py-2 font-bold ${ni >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                       {ni < 0 ? `(${fmt(Math.abs(ni)*1000)})` : fmt(ni*1000)}
-                      <span className="text-white-40 font-normal ml-1 text-xs">{pct}%</span>
+                      <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
                     </td>
                   );
                 })}
@@ -2151,18 +2177,18 @@ function ModulePL({ state, setState }) {
       </div>
 
       {/* Revenue stacked + EBITDA line chart */}
-      <div className="border border-white-10 bg-white-5 p-4">
+      <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue por país + EBITDA ($K USD)</p>
         <ResponsiveContainer width="100%" height={240}>
           <ComposedChart data={revenueByCountry}>
-            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(29,29,27,0.08)" />
             <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
             <YAxis yAxisId="rev" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false}
               tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
             <YAxis yAxisId="ebitda" orientation="right" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false}
               tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}M` : `$${v}K`} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
             {activeMarkets.map(mkt => (
               <Bar key={mkt.code} yAxisId="rev" dataKey={mkt.country} stackId="rev" fill={mkt.color} fillOpacity={0.8} />
             ))}
@@ -2196,34 +2222,37 @@ function App() {
   const activeTabData = TABS.find(t => t.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-black text-white" style={{ fontFamily: 'Barlow, sans-serif' }}>
+    <div className="min-h-screen bg-white text-ink" style={{ fontFamily: 'Inter, Helvetica Neue, sans-serif' }}>
       {/* Header */}
-      <div className="border-b border-white-10 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-condensed font-black tracking-tight text-gold">(Sh!)</span>
-          <span className="text-xs font-condensed text-white-60 uppercase tracking-widest">Strategic Decision Tool — Founders Only</span>
+      <div className="border-b border-ash px-5 py-3 flex items-center justify-between bg-white" style={{ borderBottomWidth: '1px' }}>
+        <div className="flex items-center gap-4">
+          <span className="text-xl font-black tracking-tight" style={{ fontFamily: 'Inter, Helvetica Neue, sans-serif', letterSpacing: '-0.02em' }}>
+            <span style={{ color: '#1D1D1B' }}>(</span><span style={{ color: '#F7AF1C' }}>Sh!</span><span style={{ color: '#1D1D1B' }}>)</span>
+          </span>
+          <div className="w-px h-5 bg-ash" />
+          <span className="text-xs font-semibold text-ink-40 uppercase tracking-widest">Strategic Decision Tool</span>
         </div>
-        <span className="text-xs font-condensed text-white-20 uppercase tracking-widest hidden md:block">CONFIDENCIAL · DO NOT DISTRIBUTE</span>
+        <span className="text-xs font-medium text-ink-20 uppercase tracking-widest hidden md:block">Confidencial · No distribuir</span>
       </div>
 
       {/* Global Controls */}
       <GlobalControls state={state} setState={setState} />
 
       {/* Tabs */}
-      <div className="flex border-b border-white-10 overflow-x-auto">
+      <div className="flex border-b border-ash overflow-x-auto">
         {TABS.map(tab => (
           <button key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-3 text-xs font-condensed font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : 'text-white-60 hover:text-white'}`}>
+            className={`px-4 py-3 text-xs font-condensed font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : 'text-ink-60 hover:text-ink'}`}>
             {tab.label}
           </button>
         ))}
       </div>
 
       {/* Active question */}
-      <div className="px-4 py-2 bg-white-5 border-b border-white-10">
-        <p className="text-xs font-condensed text-white-60 uppercase tracking-wider">
-          Pregunta: <span className="text-white">{activeTabData?.question}</span>
+      <div className="px-4 py-2 bg-ink-5 border-b border-ash">
+        <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider">
+          Pregunta: <span className="text-ink">{activeTabData?.question}</span>
         </p>
       </div>
 
