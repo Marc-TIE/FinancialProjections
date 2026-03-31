@@ -126,6 +126,28 @@ const COUNTRIES = [
 ];
 const COUNTRY_MAP = Object.fromEntries(COUNTRIES.map(c => [c.code, c]));
 
+// Moneda local por país — para validar precios en moneda local
+const CURRENCY_INFO = {
+  AR: { symbol: 'ARS', name: 'Peso argentino',    defaultFX: 1200,  defaultDeval: 0.30 },
+  BR: { symbol: 'BRL', name: 'Real brasileño',    defaultFX: 5.20,  defaultDeval: 0.05 },
+  MX: { symbol: 'MXN', name: 'Peso mexicano',     defaultFX: 17.5,  defaultDeval: 0.04 },
+  CL: { symbol: 'CLP', name: 'Peso chileno',      defaultFX: 950,   defaultDeval: 0.04 },
+  CO: { symbol: 'COP', name: 'Peso colombiano',   defaultFX: 4100,  defaultDeval: 0.05 },
+  PE: { symbol: 'PEN', name: 'Sol peruano',       defaultFX: 3.75,  defaultDeval: 0.03 },
+  UY: { symbol: 'UYU', name: 'Peso uruguayo',     defaultFX: 42,    defaultDeval: 0.08 },
+  PY: { symbol: 'PYG', name: 'Guaraní',           defaultFX: 7500,  defaultDeval: 0.06 },
+  BO: { symbol: 'BOB', name: 'Boliviano',         defaultFX: 6.91,  defaultDeval: 0.01 },
+  EC: { symbol: 'USD', name: 'Dólar (USD)',       defaultFX: 1,     defaultDeval: 0.00 },
+  VE: { symbol: 'VES', name: 'Bolívar',           defaultFX: 36,    defaultDeval: 0.50 },
+  US: { symbol: 'USD', name: 'Dólar (USD)',       defaultFX: 1,     defaultDeval: 0.00 },
+  CA: { symbol: 'CAD', name: 'Dólar canadiense',  defaultFX: 1.36,  defaultDeval: 0.02 },
+  ES: { symbol: 'EUR', name: 'Euro',              defaultFX: 0.92,  defaultDeval: 0.02 },
+  UK: { symbol: 'GBP', name: 'Libra esterlina',   defaultFX: 0.79,  defaultDeval: 0.02 },
+  DE: { symbol: 'EUR', name: 'Euro',              defaultFX: 0.92,  defaultDeval: 0.02 },
+  FR: { symbol: 'EUR', name: 'Euro',              defaultFX: 0.92,  defaultDeval: 0.02 },
+  IT: { symbol: 'EUR', name: 'Euro',              defaultFX: 0.92,  defaultDeval: 0.02 },
+};
+
 const INITIAL_STATE = {
   productType: 'energy_drink',
   productName: 'Sh!',
@@ -146,6 +168,9 @@ const INITIAL_STATE = {
       marketCAGR: 0.09,     // 9% crecimiento anual del mercado
       penetration: [0.18, 2.21, 10.98, 30.06, 58.60, 80.14],
       priceUSD: 1.10, cogsUSD: 0.68,
+      fxRate: 1200,          // ARS por USD — editable por mercado
+      fxDevaluation: 0.30,   // devaluación anual proyectada
+      inputCurrency: 'USD',  // 'USD' | 'local'
     },
   },
   cogsPerUnit: 0.68,
@@ -595,7 +620,7 @@ function Module5({ state, setState }) {
 
         {/* P&L summary */}
         <div className="md:col-span-2 border border-ash bg-ink-5 p-4 overflow-x-auto">
-          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Income Statement ($K USD)</p>
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Income Statement</p>
           <table className="w-full text-xs font-condensed">
             <thead>
               <tr>
@@ -622,7 +647,7 @@ function Module5({ state, setState }) {
                     const cls = row.color ? (v >= 0 ? 'text-emerald-700' : 'text-red-600') : (row.highlight ? 'text-gold font-bold' : row.bold ? 'text-ink font-bold' : 'text-ink-60');
                     return (
                       <td key={y} className={`text-right py-0.5 ${cls}`}>
-                        {v !== null && v !== undefined ? fmtK(v) : '—'}
+                        {v !== null && v !== undefined ? fmt(v * 1000) : '—'}
                       </td>
                     );
                   })}
@@ -693,7 +718,7 @@ function Module5({ state, setState }) {
       {/* WACC / TG sensitivity table */}
       <div className="border border-ash bg-ink-5 p-4 overflow-x-auto">
         <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">
-          Sensitivity: Enterprise Value ($K) — filas = TG rate, columnas = WACC
+          Sensitivity: Enterprise Value — filas = TG rate, columnas = WACC
         </p>
         <table className="text-xs font-condensed">
           <thead>
@@ -755,6 +780,9 @@ function Module1({ state, setState }) {
           marketCAGR: c.cagr || 0.08,
           penetration: [0, 0.10, 0.50, 1.50, 3.00, 6.00],
           priceUSD: c.price, cogsUSD: c.cogs,
+          fxRate: (CURRENCY_INFO[c.code] || {}).defaultFX ?? 1,
+          fxDevaluation: (CURRENCY_INFO[c.code] || {}).defaultDeval ?? 0,
+          inputCurrency: 'USD',
         }
       }
     }));
@@ -1017,36 +1045,129 @@ function Module1({ state, setState }) {
                     </div>
                   </div>
 
+                  {/* ── FX / TIPO DE CAMBIO ── */}
+                  {(() => {
+                    const ci = CURRENCY_INFO[mkt.code] || {};
+                    if (ci.symbol === 'USD') return null;
+                    const fx5 = (mkt.fxRate || 1) * Math.pow(1 + (mkt.fxDevaluation || 0), 5);
+                    return (
+                      <div className="border border-ash p-3 space-y-3 bg-ink-5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-condensed uppercase tracking-wider font-bold" style={{ color }}>
+                            Tipo de cambio — {ci.name}
+                          </p>
+                          <div className="flex gap-1">
+                            {['USD', 'local'].map(mode => (
+                              <button key={mode}
+                                onClick={() => setMkt(key, 'inputCurrency', mode)}
+                                className={`px-3 py-1 text-xs font-condensed font-bold ${(mkt.inputCurrency || 'USD') === mode ? 'text-black' : 'border border-ink-20 text-ink-60'}`}
+                                style={(mkt.inputCurrency || 'USD') === mode ? { background: color } : {}}>
+                                {mode === 'USD' ? '$ USD' : ci.symbol}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">Tipo de cambio hoy</p>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-ink-40 font-condensed">$1 USD =</span>
+                              <input type="number" value={mkt.fxRate || 1} min={0.01} step={ci.symbol === 'CLP' || ci.symbol === 'PYG' || ci.symbol === 'COP' ? 10 : 0.01}
+                                onChange={e => setMkt(key, 'fxRate', parseFloat(e.target.value) || 1)}
+                                className="bg-white border border-ash text-right px-2 py-1 font-condensed font-bold text-base w-28"
+                                style={{ color }} />
+                              <span className="text-xs text-ink-40 font-condensed">{ci.symbol}</span>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">Devaluación anual</p>
+                            <div className="flex items-center gap-1.5">
+                              <input type="number" value={((mkt.fxDevaluation || 0) * 100).toFixed(1)} min={0} max={200} step={0.5}
+                                onChange={e => setMkt(key, 'fxDevaluation', (parseFloat(e.target.value) || 0) / 100)}
+                                className="bg-white border border-ash text-right px-2 py-1 font-condensed font-bold text-base w-20"
+                                style={{ color }} />
+                              <span className="text-xs text-ink-40 font-condensed">% / año</span>
+                            </div>
+                            <p className="text-xs text-ink-20 font-condensed mt-1">
+                              FX 2030: {fx5.toLocaleString('en', { maximumFractionDigits: 0 })} {ci.symbol}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* ── UNIT ECONOMICS ── */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">Tu precio de venta (USD/lata)</p>
-                      <div className="flex items-center gap-1">
-                        <span className="text-ink-60 font-condensed">$</span>
-                        <input type="number" value={mkt.priceUSD} min={0.1} max={20} step={0.01}
-                          onChange={e => setMkt(key, 'priceUSD', parseFloat(e.target.value))}
-                          className="bg-white border border-ash text-gold text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
+                  {(() => {
+                    const ci = CURRENCY_INFO[mkt.code] || { symbol: 'USD' };
+                    const isLocal = (mkt.inputCurrency || 'USD') === 'local';
+                    const fx = mkt.fxRate || 1;
+                    const sym = ci.symbol;
+                    const isUSD = sym === 'USD';
+
+                    const displayPrice = isLocal ? (mkt.priceUSD * fx).toFixed(isUSD ? 2 : 0) : mkt.priceUSD;
+                    const displayCogs  = isLocal ? (mkt.cogsUSD  * fx).toFixed(isUSD ? 2 : 0) : mkt.cogsUSD;
+                    const priceStep    = isLocal ? (fx >= 100 ? 10 : fx >= 10 ? 1 : 0.1) : 0.01;
+                    const cogsStep     = isLocal ? (fx >= 100 ? 10 : fx >= 10 ? 1 : 0.1) : 0.01;
+                    const gpPct        = mkt.priceUSD > 0 ? ((1 - mkt.cogsUSD / mkt.priceUSD) * 100).toFixed(0) : 0;
+                    const contribUSD   = (mkt.priceUSD - mkt.cogsUSD).toFixed(2);
+                    const contribLocal = ((mkt.priceUSD - mkt.cogsUSD) * fx).toLocaleString('en', { maximumFractionDigits: 0 });
+
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">
+                            Precio de venta ({isLocal && !isUSD ? `${sym}/lata` : 'USD/lata'})
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="text-ink-60 font-condensed text-sm">{isLocal && !isUSD ? sym : '$'}</span>
+                            <input type="number" value={displayPrice}
+                              min={isLocal ? priceStep : 0.1} max={isLocal ? fx * 20 : 20} step={priceStep}
+                              onChange={e => {
+                                const v = parseFloat(e.target.value) || 0;
+                                setMkt(key, 'priceUSD', isLocal ? v / fx : v);
+                              }}
+                              className="bg-white border border-ash text-gold text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
+                          </div>
+                          <p className="text-xs font-condensed mt-1" style={{ color }}>
+                            {isLocal && !isUSD
+                              ? `= $${mkt.priceUSD.toFixed(2)} USD · Margen: ${gpPct}%`
+                              : (!isUSD
+                                  ? `= ${sym} ${(mkt.priceUSD * fx).toLocaleString('en', { maximumFractionDigits: 0 })} · Margen: ${gpPct}%`
+                                  : `Margen: ${gpPct}% · $${contribUSD}/lata`
+                                )
+                            }
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">
+                            COGS ({isLocal && !isUSD ? `${sym}/lata` : 'USD/lata'})
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="text-ink-60 font-condensed text-sm">{isLocal && !isUSD ? sym : '$'}</span>
+                            <input type="number" value={displayCogs}
+                              min={isLocal ? cogsStep : 0.01} max={isLocal ? fx * 20 : 20} step={cogsStep}
+                              onChange={e => {
+                                const v = parseFloat(e.target.value) || 0;
+                                setMkt(key, 'cogsUSD', isLocal ? v / fx : v);
+                              }}
+                              className="bg-white border border-ash text-red-600 text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
+                          </div>
+                          <p className="text-xs text-ink-40 font-condensed mt-1">
+                            {isLocal && !isUSD
+                              ? `= $${mkt.cogsUSD.toFixed(2)} USD · Contribución: ${sym} ${contribLocal}/lata`
+                              : (!isUSD
+                                  ? `${sym} ${(mkt.cogsUSD * fx).toLocaleString('en', { maximumFractionDigits: 0 })} · $${contribUSD}/lata`
+                                  : (CAN_MAP[mkt.canFormat || '355ml']?.volML
+                                      ? `${CAN_MAP[mkt.canFormat || '355ml'].volML}ml · $${(mkt.cogsUSD / (CAN_MAP[mkt.canFormat || '355ml'].volML / 1000)).toFixed(2)}/litro`
+                                      : `$${contribUSD}/lata contribución`)
+                                )
+                            }
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs font-condensed mt-1" style={{ color }}>
-                        Margen bruto: {mkt.priceUSD > 0 ? ((1 - mkt.cogsUSD / mkt.priceUSD) * 100).toFixed(0) : 0}%
-                        &nbsp;·&nbsp; ${(mkt.priceUSD - mkt.cogsUSD).toFixed(2)}/lata de contribución
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-condensed text-ink-60 uppercase tracking-wider mb-1">COGS (USD/lata)</p>
-                      <div className="flex items-center gap-1">
-                        <span className="text-ink-60 font-condensed">$</span>
-                        <input type="number" value={mkt.cogsUSD} min={0.01} max={20} step={0.01}
-                          onChange={e => setMkt(key, 'cogsUSD', parseFloat(e.target.value))}
-                          className="bg-white border border-ash text-red-600 text-right px-2 py-1 font-condensed font-bold text-xl w-28" />
-                      </div>
-                      <p className="text-xs text-ink-20 font-condensed mt-1">
-                        {CAN_MAP[mkt.canFormat || '355ml']?.volML
-                          ? `${CAN_MAP[mkt.canFormat || '355ml'].volML}ml · $${((mkt.cogsUSD / (CAN_MAP[mkt.canFormat || '355ml'].volML / 1000))).toFixed(2)}/litro`
-                          : ''}
-                      </p>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Penetration table */}
                   <div>
@@ -1246,15 +1367,15 @@ function Module2({ state, setState }) {
         {equityPath && (
           <div className="border border-ash bg-ink-5 p-4">
             <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Equity</p>
-            <Slider label="Capital levantado ($K)" value={state.capitalNeeded} min={500} max={20000} step={100}
+            <Slider label="Capital levantado" value={state.capitalNeeded} min={500} max={20000} step={100}
               onChange={v => setState(s => ({ ...s, capitalNeeded: v }))}
-              format={v => `$${v.toLocaleString('en')}K`} />
+              format={v => fmt(v * 1000)} />
             <Slider label="Dilución %" value={state.equityDilution} min={0.01} max={0.50} step={0.005}
               onChange={v => setState(s => ({ ...s, equityDilution: v }))}
               format={v => fmtPct(v)} />
-            <Slider label="Valuación pre-money ($K)" value={state.currentEquityValue} min={5000} max={200000} step={1000}
+            <Slider label="Valuación pre-money" value={state.currentEquityValue} min={5000} max={200000} step={1000}
               onChange={v => setState(s => ({ ...s, currentEquityValue: v }))}
-              format={v => `$${(v/1000).toFixed(1)}M`} />
+              format={v => fmt(v * 1000)} />
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-condensed">
               <div className="bg-ink-5 p-2">
                 <p className="text-ink-60">Pre-money EV</p>
@@ -1280,9 +1401,9 @@ function Module2({ state, setState }) {
         {debtPath && (
           <div className="border border-ash bg-ink-5 p-4">
             <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Deuda</p>
-            <Slider label="Monto deuda ($K)" value={state.debtAmount} min={0} max={10000} step={100}
+            <Slider label="Monto deuda" value={state.debtAmount} min={0} max={10000} step={100}
               onChange={v => setState(s => ({ ...s, debtAmount: v }))}
-              format={v => `$${v.toLocaleString('en')}K`} />
+              format={v => fmt(v * 1000)} />
             <Slider label="Tasa de interés" value={state.debtInterestRate} min={0.05} max={0.60} step={0.01}
               onChange={v => setState(s => ({ ...s, debtInterestRate: v }))}
               format={v => fmtPct(v)} />
@@ -1369,6 +1490,15 @@ function Module3({ state, setState }) {
         <p className="text-sm font-condensed text-ink-60 mt-1">
           {`Mover 10% de ${Object.values(channelMargins).sort((a,b) => a.grossMarginPct - b.grossMarginPct)[0]?.label} → ${bestChannel?.channel} agrega ~${fmtPct(Math.abs(chartData[0]?.['Gross Margin %']/100 - Object.values(channelMargins).sort((a,b) => a.grossMarginPct - b.grossMarginPct)[0]?.grossMarginPct) * 0.1)} al margen blended.`}
         </p>
+      </div>
+
+      {/* Nota aclaratoria */}
+      <div className="border border-ash p-3 text-xs font-condensed text-ink-60 space-y-1.5 bg-ink-5">
+        <p className="font-semibold text-ink uppercase tracking-wider text-xs">¿Para qué sirve este tab?</p>
+        <p>Acá definís la <strong className="text-ink">economía unitaria por canal</strong>: precio de venta, COGS y fee de distribución. El <strong className="text-ink">margen blended</strong> es el promedio ponderado por share de cada canal.</p>
+        <p className="text-gold font-semibold">⚠ Este análisis es estratégico — no modifica el P&L ni la valuación.</p>
+        <p>El revenue del modelo (tabs P&L, Caja, Valuación) se calcula con el <strong className="text-ink">precio por mercado del Tab 01</strong>. Este tab te ayuda a entender <em>por qué canal conviene crecer</em>: si tu próximo peso va a Rappi (margen alto, costo de adquisición bajo) vs Mayorista (margen bajo, volumen alto), ese mix afecta el margen bruto real cuando lo repliques en Tab 01.</p>
+        <p>El <strong className="text-ink">Simulador de mix</strong> muestra el delta de margen si movés share de un canal a otro — usalo para decidir dónde invertir en trade marketing.</p>
       </div>
 
       {/* Editable channel table */}
@@ -1526,6 +1656,15 @@ function Module4({ state, setState }) {
 
   return (
     <div className="p-4 space-y-6">
+      {/* Nota aclaratoria */}
+      <div className="border border-ash p-3 text-xs font-condensed text-ink-60 space-y-1.5 bg-ink-5">
+        <p className="font-semibold text-ink uppercase tracking-wider text-xs">¿Qué modela este tab y qué no?</p>
+        <p>Los sliders de <strong className="text-ink">devaluación ARS/USD</strong> e <strong className="text-ink">inflación</strong> muestran cómo distintos escenarios macro afectan la trayectoria del tipo de cambio y el costo en dólares de tu estructura argentina.</p>
+        <p><strong className="text-ink">Lo que SÍ impacta:</strong> la proyección del FX (ej. $1 USD = cuántos ARS en 2028/2030), el impacto sobre tu <em>COGS ajustado en USD</em> si tus costos de producción están en pesos, y la lectura de viabilidad del pricing local.</p>
+        <p><strong className="text-ink">Lo que NO cambia automáticamente:</strong> el revenue del modelo principal está expresado en USD y usa el precio de venta en dólares del Tab 01. Si vendés en pesos y la devaluación erosiona tu precio USD efectivo, ese ajuste lo hacés manualmente cambiando <em>priceUSD</em> en Tab 01 → el tipo de cambio del mercado te da el número exacto.</p>
+        <p className="text-gold font-semibold">Uso recomendado: elegí un preset de escenario macro, anotá el FX proyectado para 2027-2030, y actualizá el precio en pesos en Tab 01 para validar que tu precio en ARS sea competitivo y cubra costos.</p>
+      </div>
+
       {/* Presets */}
       <div className="flex gap-3">
         {[
@@ -1726,6 +1865,16 @@ function Module6({ state, setState }) {
               {capitalGap > 0 ? fmt(capitalGap * 1000) : 'Autosuficiente'}
             </p>
             {capitalGap > 0 && <p className="text-xs text-ink-60 font-condensed mt-1">Pico de necesidad en {needYear} (con 20% buffer)</p>}
+            {capitalGap > 0 && (
+              <div className="mt-3 pt-3 border-t border-ink-20 text-xs font-condensed space-y-1.5 max-w-xs">
+                <p className="text-ink-40 uppercase tracking-wider font-semibold">¿Cómo se calcula?</p>
+                <p className="text-ink-60">Es el peor acumulado de FCF libre proyectado ({needYear}) más 20% de colchón operativo. Si los flujos son negativos antes del break-even, ese es el agujero que necesitás cubrir.</p>
+                <p className="text-ink-40 uppercase tracking-wider font-semibold mt-2">Alternativas para financiar ese descalce</p>
+                <p className="text-ink-60">① <strong className="text-ink">Equity</strong> — emitís acciones, el capital entra sin costo de interés pero diluís. Usá el tab Financiamiento para modelarlo.</p>
+                <p className="text-ink-60">② <strong className="text-ink">Deuda</strong> — préstamo bancario o venture debt. Pagás tasa pero no diluís. Funciona si DSCR ≥ 1.2x.</p>
+                <p className="text-ink-60">③ <strong className="text-ink">Working capital</strong> — bajá DSO, subí DPO. Cada día menos de ciclo reduce la necesidad. Tocá los sliders de abajo para ver el impacto.</p>
+              </div>
+            )}
           </div>
           <div>
             <p className="text-xs text-ink-60 font-condensed uppercase">Break-even caja</p>
