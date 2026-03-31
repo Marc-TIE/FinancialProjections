@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>(Sh!) Strategic Decision Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        condensed: ['Barlow Condensed', 'sans-serif'],
+        barlow: ['Barlow', 'sans-serif'],
+      },
+      colors: {
+        gold: '#F7AF1C',
+        'gold-dim': 'rgba(247,175,28,0.15)',
+        'gold-border': 'rgba(247,175,28,0.3)',
+        'white-60': 'rgba(255,255,255,0.6)',
+        'white-20': 'rgba(255,255,255,0.2)',
+        'white-10': 'rgba(255,255,255,0.1)',
+        'white-5': 'rgba(255,255,255,0.05)',
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #000; color: #fff; font-family: 'Barlow', sans-serif; margin: 0; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #111; }
+  ::-webkit-scrollbar-thumb { background: #F7AF1C44; }
+  input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { background: rgba(255,255,255,0.15); height: 3px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; background: #F7AF1C; width: 14px; height: 14px; margin-top: -5.5px; }
+  .tab-active { border-bottom: 2px solid #F7AF1C; color: #F7AF1C; }
+  .cell-highlight { background: rgba(247,175,28,0.2); color: #F7AF1C; }
+  .negative { color: #ef4444; }
+  .positive { color: #4ade80; }
+  .recharts-tooltip-wrapper { z-index: 100; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script type="text/javascript">
+const { useState, useCallback, useMemo, useRef } = React;
+const {
+  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  Cell, ReferenceLine, ComposedChart
+} = Recharts;
+
+// ─────────────────────────────────────────────
+// INITIAL STATE
+// ─────────────────────────────────────────────
+const INITIAL_STATE = {
+  arInflation: 0.45,
+  arFX: 1000,
+  arFXDevaluation: 0.30,
+  latamInflation: 0.08,
+  usInflation: 0.03,
+  markets: {
+    argentina:  { active: true,  openYear: 2025, volumeGrowth: [11.4, 4.0, 1.7, 0.9, 0.4],  priceUSD: 1.10 },
+    latam:      { active: false, openYear: 2027, volumeGrowth: [8.0, 6.0, 4.0, 3.0, 2.0],    priceUSD: 1.20 },
+    usa:        { active: false, openYear: 2029, volumeGrowth: [5.0, 4.0, 3.0, 2.0, 1.5],    priceUSD: 2.50 },
+  },
+  cogsPerUnit: 0.68,
+  sgaPercent: 0.395,
+  channels: {
+    supermarket:    { share: 0.40, priceUSD: 1.10, cogsUSD: 0.68, distribFee: 0.18, label: 'Supermercado' },
+    convenienceYPF: { share: 0.20, priceUSD: 1.30, cogsUSD: 0.68, distribFee: 0.10, label: 'YPF / Kiosco' },
+    rappi:          { share: 0.15, priceUSD: 1.50, cogsUSD: 0.68, distribFee: 0.25, label: 'Rappi' },
+    wholesale:      { share: 0.25, priceUSD: 0.95, cogsUSD: 0.68, distribFee: 0.05, label: 'Mayorista' },
+  },
+  daysAR: 45,
+  daysInventory: 20,
+  daysAP: 30,
+  capex: [8800, 3520, 1760, 880, 440],
+  financingMode: 'equity',
+  capitalNeeded: 4000,
+  equityDilution: 0.117,
+  debtAmount: 0,
+  debtInterestRate: 0.18,
+  debtTermYears: 3,
+  currentEquityValue: 30000,
+  wacc: 0.101,
+  terminalGrowthRate: 0.07,
+  terminalEBITDAMultiple: 15,
+  taxRate: 0.30,
+  scenario: 'base',
+  scenarioMultipliers: { best: 1.20, base: 1.00, worst: 0.80 },
+  displayCurrency: 'USD',
+};
+
+const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
+const FORECAST_YEARS = [2026, 2027, 2028, 2029, 2030];
+const GOLD = '#F7AF1C';
+const RED = '#ef4444';
+const GREEN = '#4ade80';
+const BLUE = '#60a5fa';
+const PURPLE = '#a78bfa';
+const CYAN = '#22d3ee';
+const MUTED = 'rgba(255,255,255,0.4)';
+
+// ─────────────────────────────────────────────
+// MODEL FUNCTIONS
+// ─────────────────────────────────────────────
+
+// Base volume by year from Excel model (units, annual) — Argentina base case
+const BASE_VOLUME = {
+  2025: 894174,
+  2026: 11058400,
+  2027: 54916536,
+  2028: 150300365,
+  2029: 292975161,
+  2030: 400710404,
+};
+
+// COGS/unit trajectory from Excel (inflation-adjusted over time)
+const BASE_COGS_UNIT = {
+  2025: 1.10, // façon price starts high
+  2026: 0.676,
+  2027: 0.655,
+  2028: 0.635,
+  2029: 0.615,
+  2030: 0.605,
+};
+
+function calcFXRate(state, year) {
+  const yearsOut = year - 2025;
+  return state.arFX * Math.pow(1 + state.arFXDevaluation, yearsOut);
+}
+
+function calcVolume(state, year) {
+  const mult = state.scenarioMultipliers[state.scenario];
+  let vol = 0;
+
+  // Argentina
+  if (state.markets.argentina.active && year >= state.markets.argentina.openYear) {
+    const yearIdx = year - 2025;
+    let base = BASE_VOLUME[year] || 0;
+    // Apply scenario multiplier to growth (not absolute)
+    if (year > 2025) {
+      const growthRate = state.markets.argentina.volumeGrowth[Math.min(yearIdx - 1, 4)] / 100;
+      const prevBase = BASE_VOLUME[year - 1] || 0;
+      const growth = prevBase * growthRate;
+      base = prevBase + growth * mult;
+    }
+    vol += base;
+  }
+
+  // LATAM
+  if (state.markets.latam.active && year >= state.markets.latam.openYear) {
+    const yearsOpen = year - state.markets.latam.openYear;
+    const growthIdx = Math.min(yearsOpen, 4);
+    const growthRate = state.markets.latam.volumeGrowth[growthIdx] / 100;
+    // Start at 10% of 2025 Argentina volume, grow from there
+    let base = 89417;
+    for (let i = 0; i <= yearsOpen; i++) {
+      const g = state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100;
+      base = i === 0 ? base : base * (1 + g * mult);
+    }
+    // Scale by latam market size factor (3x Argentina addressable)
+    vol += base * 3;
+  }
+
+  // USA
+  if (state.markets.usa.active && year >= state.markets.usa.openYear) {
+    const yearsOpen = year - state.markets.usa.openYear;
+    let base = 500000;
+    for (let i = 0; i <= yearsOpen; i++) {
+      const g = state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100;
+      base = i === 0 ? base : base * (1 + g * mult);
+    }
+    vol += base * 2;
+  }
+
+  return vol;
+}
+
+function calcRevenue(state, year) {
+  // Use exact Excel model base volume for Argentina
+  const mult = state.scenarioMultipliers[state.scenario];
+  let rev = 0;
+
+  if (state.markets.argentina.active && year >= state.markets.argentina.openYear) {
+    const vol = (() => {
+      if (year <= 2025) return BASE_VOLUME[2025];
+      // Rebuild volume using state growth rates from base
+      let v = BASE_VOLUME[2025];
+      for (let y = 2026; y <= year; y++) {
+        const idx = y - 2026;
+        const g = (state.markets.argentina.volumeGrowth[Math.min(idx, 4)] / 100) * mult;
+        v = v * (1 + g);
+      }
+      return v;
+    })();
+    rev += (vol / 1000) * state.markets.argentina.priceUSD; // in $K
+  }
+
+  if (state.markets.latam.active && year >= state.markets.latam.openYear) {
+    const yearsOpen = year - state.markets.latam.openYear;
+    let vol = 5000000; // 5M units opening year
+    for (let i = 1; i <= yearsOpen; i++) {
+      const g = (state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100) * mult;
+      vol = vol * (1 + g);
+    }
+    rev += (vol / 1000) * state.markets.latam.priceUSD;
+  }
+
+  if (state.markets.usa.active && year >= state.markets.usa.openYear) {
+    const yearsOpen = year - state.markets.usa.openYear;
+    let vol = 2000000;
+    for (let i = 1; i <= yearsOpen; i++) {
+      const g = (state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100) * mult;
+      vol = vol * (1 + g);
+    }
+    rev += (vol / 1000) * state.markets.usa.priceUSD;
+  }
+
+  return rev; // USD thousands
+}
+
+function calcCOGS(state, year) {
+  const mult = state.scenarioMultipliers[state.scenario];
+  let cogs = 0;
+
+  if (state.markets.argentina.active && year >= state.markets.argentina.openYear) {
+    const vol = (() => {
+      if (year <= 2025) return BASE_VOLUME[2025];
+      let v = BASE_VOLUME[2025];
+      for (let y = 2026; y <= year; y++) {
+        const idx = y - 2026;
+        const g = (state.markets.argentina.volumeGrowth[Math.min(idx, 4)] / 100) * mult;
+        v = v * (1 + g);
+      }
+      return v;
+    })();
+    const cogsUnit = BASE_COGS_UNIT[year] || state.cogsPerUnit;
+    cogs += (vol / 1000) * cogsUnit;
+  }
+
+  if (state.markets.latam.active && year >= state.markets.latam.openYear) {
+    const yearsOpen = year - state.markets.latam.openYear;
+    let vol = 5000000;
+    for (let i = 1; i <= yearsOpen; i++) {
+      const g = (state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100) * mult;
+      vol = vol * (1 + g);
+    }
+    cogs += (vol / 1000) * state.cogsPerUnit;
+  }
+
+  if (state.markets.usa.active && year >= state.markets.usa.openYear) {
+    const yearsOpen = year - state.markets.usa.openYear;
+    let vol = 2000000;
+    for (let i = 1; i <= yearsOpen; i++) {
+      const g = (state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100) * mult;
+      vol = vol * (1 + g);
+    }
+    cogs += (vol / 1000) * state.cogsPerUnit;
+  }
+
+  return cogs;
+}
+
+function calcGrossProfit(state, year) {
+  return calcRevenue(state, year) - calcCOGS(state, year);
+}
+
+function calcSGA(state, year) {
+  return calcRevenue(state, year) * state.sgaPercent;
+}
+
+function calcEBITDA(state, year) {
+  return calcGrossProfit(state, year) - calcSGA(state, year);
+}
+
+function calcDepreciation(state, year) {
+  // From Excel: capex depreciates over 20 years, half in first year
+  const capexSchedule = { 2026: state.capex[0], 2027: state.capex[1], 2028: state.capex[2], 2029: state.capex[3], 2030: state.capex[4] };
+  let dep = 0;
+  for (let capexYear = 2026; capexYear <= year; capexYear++) {
+    const capexAmt = capexSchedule[capexYear] || 0;
+    const annualDep = capexAmt / 20;
+    const yearsActive = year - capexYear;
+    if (yearsActive === 0) dep += annualDep * 0.5;
+    else dep += annualDep;
+  }
+  return dep;
+}
+
+function calcEBIT(state, year) {
+  return calcEBITDA(state, year) - calcDepreciation(state, year);
+}
+
+function calcWorkingCapital(state, year) {
+  const rev = calcRevenue(state, year);
+  const cogs = calcCOGS(state, year);
+  const ar = (rev / 365) * state.daysAR;
+  const inv = (cogs / 365) * state.daysInventory;
+  const ap = (cogs / 365) * state.daysAP;
+  return ar + inv - ap;
+}
+
+function calcDeltaWC(state, year) {
+  if (year <= 2025) return 0;
+  return calcWorkingCapital(state, year) - calcWorkingCapital(state, year - 1);
+}
+
+function calcTax(state, year) {
+  const ebit = calcEBIT(state, year);
+  if (ebit <= 0) return 0;
+  return ebit * state.taxRate;
+}
+
+function calcNOPAT(state, year) {
+  return calcEBIT(state, year) - calcTax(state, year);
+}
+
+function calcFCF(state, year) {
+  if (year <= 2025) return null;
+  const ebitda = calcEBITDA(state, year);
+  const tax = calcTax(state, year);
+  const capex = state.capex[year - 2026] || 0;
+  const deltaWC = calcDeltaWC(state, year);
+  return ebitda - tax - capex - deltaWC;
+}
+
+function calcDebtService(state, year) {
+  if (state.financingMode === 'equity') return 0;
+  if (state.debtAmount <= 0) return 0;
+  const startYear = 2026;
+  const endYear = startYear + state.debtTermYears - 1;
+  if (year < startYear || year > endYear) return 0;
+  const annualPrincipal = state.debtAmount / state.debtTermYears;
+  const remainingDebt = state.debtAmount - (year - startYear) * annualPrincipal;
+  const interest = remainingDebt * state.debtInterestRate;
+  return annualPrincipal + interest;
+}
+
+function calcDCF(state) {
+  const wacc = state.wacc;
+  const tg = state.terminalGrowthRate;
+  let pvSum = 0;
+  let pvFCFs = {};
+
+  for (let year = 2026; year <= 2030; year++) {
+    const fcf = calcFCF(state, year);
+    const t = year - 2025; // years from end of 2025
+    const pv = fcf / Math.pow(1 + wacc, t);
+    pvSum += pv;
+    pvFCFs[year] = pv;
+  }
+
+  // Terminal value (perpetuity method)
+  const termFCF = calcFCF(state, 2030);
+  const terminalValue = (termFCF * (1 + tg)) / (wacc - tg);
+  const pvTerminal = terminalValue / Math.pow(1 + wacc, 5);
+
+  // Multiple method terminal value
+  const termEBITDA = calcEBITDA(state, 2030);
+  const tvMultiple = termEBITDA * state.terminalEBITDAMultiple;
+  const pvTerminalMultiple = tvMultiple / Math.pow(1 + wacc, 5);
+
+  const evPerpetual = pvSum + pvTerminal;
+  const evMultiple = pvSum + pvTerminalMultiple;
+
+  return {
+    pvFCFs,
+    pvSum,
+    pvTerminal,
+    pvTerminalMultiple,
+    terminalValue,
+    tvMultiple,
+    evPerpetual,
+    evMultiple,
+    equityValuePerpetual: evPerpetual,
+    equityValueMultiple: evMultiple,
+  };
+}
+
+function calcChannelMargins(state) {
+  const results = {};
+  for (const [key, ch] of Object.entries(state.channels)) {
+    const netRev = ch.priceUSD * (1 - ch.distribFee);
+    const grossMargin = (netRev - ch.cogsUSD) / netRev;
+    const contribPerUnit = netRev - ch.cogsUSD;
+    const contribPerSGA = contribPerUnit / (ch.priceUSD * state.sgaPercent);
+    results[key] = {
+      ...ch,
+      netRevPerUnit: netRev,
+      grossMarginPct: grossMargin,
+      contribPerUnit,
+      contribPerSGA,
+    };
+  }
+  return results;
+}
+
+function calcBlendedMargin(channels) {
+  let totalShare = 0, weightedMargin = 0;
+  for (const ch of Object.values(channels)) {
+    totalShare += ch.share;
+    weightedMargin += ch.share * ch.grossMarginPct;
+  }
+  return totalShare > 0 ? weightedMargin / totalShare : 0;
+}
+
+function calcFXImpact(state, year) {
+  const fxRate = calcFXRate(state, year);
+  const rev = calcRevenue(state, year);
+  return { fxRate, revUSD: rev, revARS: rev * fxRate };
+}
+
+function calcEquityValue(state) {
+  return calcDCF(state).evPerpetual;
+}
+
+function buildFinancials(state) {
+  const rows = {};
+  for (const year of YEARS) {
+    rows[year] = {
+      revenue: calcRevenue(state, year),
+      cogs: calcCOGS(state, year),
+      grossProfit: calcGrossProfit(state, year),
+      sga: calcSGA(state, year),
+      ebitda: calcEBITDA(state, year),
+      depreciation: year > 2025 ? calcDepreciation(state, year) : 0,
+      ebit: year > 2025 ? calcEBIT(state, year) : calcEBITDA(state, year),
+      tax: calcTax(state, year),
+      nopat: calcNOPAT(state, year),
+      workingCapital: calcWorkingCapital(state, year),
+      deltaWC: calcDeltaWC(state, year),
+      capex: year > 2025 ? (state.capex[year - 2026] || 0) : 0,
+      fcf: calcFCF(state, year),
+      debtService: calcDebtService(state, year),
+    };
+  }
+  return rows;
+}
+
+// ─────────────────────────────────────────────
+// FORMAT HELPERS
+// ─────────────────────────────────────────────
+function fmt(val, decimals = 0) {
+  if (val === null || val === undefined) return '—';
+  const abs = Math.abs(val);
+  if (abs >= 1000000) return `${val < 0 ? '-' : ''}$${(abs / 1000000).toFixed(1)}M`;
+  if (abs >= 1000) return `${val < 0 ? '-' : ''}$${(abs / 1000).toFixed(decimals)}K`;
+  return `${val < 0 ? '-' : ''}$${abs.toFixed(decimals)}`;
+}
+function fmtK(val) {
+  if (val === null || val === undefined) return '—';
+  if (val < 0) return `(${Math.abs(val).toLocaleString('en', {maximumFractionDigits: 0})})`;
+  return val.toLocaleString('en', {maximumFractionDigits: 0});
+}
+function fmtPct(val, d = 1) {
+  if (val === null || val === undefined) return '—';
+  return `${(val * 100).toFixed(d)}%`;
+}
+function fmtM(val) {
+  if (val === null || val === undefined) return '—';
+  const abs = Math.abs(val) / 1000;
+  if (val < 0) return `($${abs.toFixed(0)}K)`;
+  return `$${abs.toFixed(0)}K`;
+}
+function colorVal(val) {
+  if (val === null || val === undefined) return '';
+  return val >= 0 ? 'text-green-400' : 'text-red-400';
+}
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#111', border: '1px solid rgba(247,175,28,0.3)', padding: '8px 12px', fontFamily: 'Barlow Condensed' }}>
+      <p style={{ color: '#F7AF1C', fontWeight: 600, marginBottom: 4 }}>{label}</p>
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.color || '#fff', fontSize: 13 }}>
+          {p.name}: {typeof p.value === 'number' ? (p.value >= 1000 ? `$${(p.value).toLocaleString('en', {maximumFractionDigits: 0})}K` : `$${p.value.toLocaleString('en', {maximumFractionDigits: 1})}K`) : p.value}
+        </p>
+      ))}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// SLIDER COMPONENT
+// ─────────────────────────────────────────────
+function Slider({ label, value, min, max, step, onChange, format }) {
+  return (
+    <div className="mb-3">
+      <div className="flex justify-between mb-1">
+        <span className="text-xs font-condensed text-white-60 uppercase tracking-wider">{label}</span>
+        <span className="text-sm font-condensed font-bold text-gold">{format ? format(value) : value}</span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step}
+        value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        className="w-full"
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MODULE 5: DCF VALUATION
+// ─────────────────────────────────────────────
+function Module5({ state, setState }) {
+  const fin = useMemo(() => buildFinancials(state), [state]);
+  const dcf = useMemo(() => calcDCF(state), [state]);
+
+  const scenarioResults = useMemo(() => {
+    return ['best', 'base', 'worst'].map(sc => {
+      const s = { ...state, scenario: sc };
+      const d = calcDCF(s);
+      return { sc, ev: d.evPerpetual, evMult: d.evMultiple };
+    });
+  }, [state]);
+
+  // WACC sensitivity table
+  const waccRange = [0.08, 0.09, 0.10, 0.11, 0.12, 0.13];
+  const tgRange = [0.05, 0.06, 0.07, 0.08, 0.09];
+
+  const sensitivityTable = useMemo(() => {
+    return tgRange.map(tg => ({
+      tg,
+      values: waccRange.map(w => {
+        const s = { ...state, wacc: w, terminalGrowthRate: tg };
+        return calcDCF(s).evPerpetual;
+      })
+    }));
+  }, [state]);
+
+  const fcfData = FORECAST_YEARS.map(y => ({
+    year: y,
+    FCF: Math.round(fin[y]?.fcf || 0),
+    Revenue: Math.round(fin[y]?.revenue || 0),
+    EBITDA: Math.round(fin[y]?.ebitda || 0),
+  }));
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Header answer */}
+      <div className="border border-gold-border bg-gold-dim p-4">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Valuación base case hoy</p>
+        <div className="flex gap-8 flex-wrap">
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">EV (Perpetuity)</p>
+            <p className="text-4xl font-condensed font-bold text-gold">{fmt(dcf.evPerpetual * 1000)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">EV (Exit Multiple)</p>
+            <p className="text-4xl font-condensed font-bold text-white">{fmt(dcf.evMultiple * 1000)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">EV / Revenue 2030</p>
+            <p className="text-4xl font-condensed font-bold text-white">
+              {fin[2030]?.revenue > 0 ? `${((dcf.evPerpetual) / fin[2030].revenue).toFixed(1)}x` : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-white-60 font-condensed uppercase">EV / EBITDA 2030</p>
+            <p className="text-4xl font-condensed font-bold text-white">
+              {fin[2030]?.ebitda > 0 ? `${((dcf.evPerpetual) / fin[2030].ebitda).toFixed(1)}x` : '—'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Scenario comparison */}
+      <div className="grid grid-cols-3 gap-2">
+        {scenarioResults.map(({ sc, ev }) => (
+          <div key={sc}
+            className={`border p-3 cursor-pointer ${state.scenario === sc ? 'border-gold bg-gold-dim' : 'border-white-20 bg-white-5'}`}
+            onClick={() => setState(s => ({ ...s, scenario: sc }))}>
+            <p className="text-xs font-condensed uppercase text-white-60">{sc === 'best' ? 'Best Case' : sc === 'base' ? 'Base Case' : 'Worst Case'}</p>
+            <p className="text-2xl font-condensed font-bold text-white">{fmt(ev * 1000)}</p>
+            <p className="text-xs text-white-60">Perpetuity EV</p>
+          </div>
+        ))}
+      </div>
+
+      {/* DCF inputs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">DCF Inputs</p>
+          <Slider label="WACC" value={state.wacc} min={0.06} max={0.20} step={0.001}
+            onChange={v => setState(s => ({ ...s, wacc: v }))}
+            format={v => fmtPct(v)} />
+          <Slider label="Terminal Growth Rate" value={state.terminalGrowthRate} min={0.02} max={0.12} step={0.005}
+            onChange={v => setState(s => ({ ...s, terminalGrowthRate: v }))}
+            format={v => fmtPct(v)} />
+          <Slider label="Exit EBITDA Multiple" value={state.terminalEBITDAMultiple} min={5} max={30} step={0.5}
+            onChange={v => setState(s => ({ ...s, terminalEBITDAMultiple: v }))}
+            format={v => `${v}x`} />
+          <Slider label="Tax Rate" value={state.taxRate} min={0.10} max={0.45} step={0.01}
+            onChange={v => setState(s => ({ ...s, taxRate: v }))}
+            format={v => fmtPct(v)} />
+        </div>
+
+        {/* P&L summary */}
+        <div className="md:col-span-2 border border-white-10 bg-white-5 p-4 overflow-x-auto">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Income Statement ($K USD)</p>
+          <table className="w-full text-xs font-condensed">
+            <thead>
+              <tr>
+                <th className="text-left text-white-60 pb-1 font-normal">Línea</th>
+                {YEARS.map(y => <th key={y} className="text-right text-white-60 pb-1 font-normal">{y}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { key: 'revenue', label: 'Revenue', bold: false },
+                { key: 'cogs', label: 'COGS', bold: false, neg: true },
+                { key: 'grossProfit', label: 'Gross Profit', bold: true },
+                { key: 'sga', label: 'SG&A', bold: false, neg: true },
+                { key: 'ebitda', label: 'EBITDA', bold: true, highlight: true },
+                { key: 'tax', label: 'Tax', bold: false, neg: true },
+                { key: 'fcf', label: 'FCF', bold: true, color: true },
+              ].map(row => (
+                <tr key={row.key} className={row.highlight ? 'bg-gold-dim' : ''}>
+                  <td className={`py-0.5 ${row.bold ? 'font-bold text-white' : 'text-white-60'}`}>
+                    {row.label}
+                  </td>
+                  {YEARS.map(y => {
+                    const v = fin[y]?.[row.key];
+                    const cls = row.color ? (v >= 0 ? 'text-green-400' : 'text-red-400') : (row.highlight ? 'text-gold font-bold' : row.bold ? 'text-white font-bold' : 'text-white-60');
+                    return (
+                      <td key={y} className={`text-right py-0.5 ${cls}`}>
+                        {v !== null && v !== undefined ? fmtK(v) : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* FCF chart */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">FCF & EBITDA ($K)</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={fcfData}>
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.08)" />
+              <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: MUTED, fontSize: 10, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
+              <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" strokeDasharray="3 3" />
+              <Bar dataKey="EBITDA" fill={GOLD} fillOpacity={0.3} />
+              <Line dataKey="FCF" stroke={GOLD} dot={{ fill: GOLD, r: 3 }} strokeWidth={2} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* DCF waterfall breakdown */}
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">EV Breakdown (Perpetuity)</p>
+          <div className="space-y-2">
+            {FORECAST_YEARS.map(y => {
+              const pv = dcf.pvFCFs[y] || 0;
+              const totalEV = dcf.evPerpetual;
+              const pct = Math.abs(pv / totalEV);
+              return (
+                <div key={y} className="flex items-center gap-2">
+                  <span className="text-xs font-condensed text-white-60 w-8">{y}</span>
+                  <div className="flex-1 relative h-5 bg-white-5">
+                    <div
+                      className="absolute top-0 bottom-0"
+                      style={{
+                        width: `${Math.min(pct * 100, 100)}%`,
+                        background: pv >= 0 ? 'rgba(247,175,28,0.4)' : 'rgba(239,68,68,0.4)',
+                        left: pv >= 0 ? 0 : 'auto', right: pv < 0 ? 0 : 'auto'
+                      }}
+                    />
+                    <span className="absolute inset-0 flex items-center px-1 text-xs font-condensed" style={{ color: pv >= 0 ? GOLD : RED }}>
+                      ${pv >= 0 ? '' : '('}${Math.abs(pv / 1000).toFixed(0)}M{pv < 0 ? ')' : ''}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-condensed text-white-60 w-8">TV</span>
+              <div className="flex-1 relative h-5 bg-white-5">
+                <div className="absolute top-0 bottom-0 left-0 right-0" style={{ background: 'rgba(96,165,250,0.2)' }} />
+                <span className="absolute inset-0 flex items-center px-1 text-xs font-condensed text-blue-400 font-bold">
+                  ${(dcf.pvTerminal / 1000).toFixed(0)}M · {fmtPct(dcf.pvTerminal / dcf.evPerpetual)} of EV
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* WACC / TG sensitivity table */}
+      <div className="border border-white-10 bg-white-5 p-4 overflow-x-auto">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">
+          Sensitivity: Enterprise Value ($K) — filas = TG rate, columnas = WACC
+        </p>
+        <table className="text-xs font-condensed">
+          <thead>
+            <tr>
+              <th className="text-right text-white-60 font-normal pr-3 pb-1">TG \ WACC</th>
+              {waccRange.map(w => (
+                <th key={w} className={`text-right px-3 pb-1 font-normal ${Math.abs(w - state.wacc) < 0.005 ? 'text-gold' : 'text-white-60'}`}>
+                  {(w * 100).toFixed(0)}%
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sensitivityTable.map(({ tg, values }) => (
+              <tr key={tg}>
+                <td className={`text-right pr-3 py-0.5 ${Math.abs(tg - state.terminalGrowthRate) < 0.003 ? 'text-gold font-bold' : 'text-white-60'}`}>
+                  {(tg * 100).toFixed(0)}%
+                </td>
+                {values.map((v, i) => {
+                  const isCenter = Math.abs(waccRange[i] - state.wacc) < 0.005 && Math.abs(tg - state.terminalGrowthRate) < 0.003;
+                  return (
+                    <td key={i} className={`text-right px-3 py-0.5 ${isCenter ? 'bg-gold text-black font-bold' : ''}`}>
+                      {v > 0 ? `$${(v / 1000).toFixed(0)}M` : `($${(Math.abs(v) / 1000).toFixed(0)}M)`}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MODULE 1: MARKET TIMING
+// ─────────────────────────────────────────────
+function Module1({ state, setState }) {
+  const fin = useMemo(() => buildFinancials(state), [state]);
+
+  const marketData = YEARS.map(y => {
+    const argRev = (() => {
+      if (!state.markets.argentina.active || y < state.markets.argentina.openYear) return 0;
+      const mult = state.scenarioMultipliers[state.scenario];
+      if (y <= 2025) return (BASE_VOLUME[2025] / 1000) * state.markets.argentina.priceUSD;
+      let v = BASE_VOLUME[2025];
+      for (let yr = 2026; yr <= y; yr++) {
+        const idx = yr - 2026;
+        const g = (state.markets.argentina.volumeGrowth[Math.min(idx, 4)] / 100) * mult;
+        v = v * (1 + g);
+      }
+      return (v / 1000) * state.markets.argentina.priceUSD;
+    })();
+
+    const latamRev = (() => {
+      if (!state.markets.latam.active || y < state.markets.latam.openYear) return 0;
+      const mult = state.scenarioMultipliers[state.scenario];
+      const yearsOpen = y - state.markets.latam.openYear;
+      let vol = 5000000;
+      for (let i = 1; i <= yearsOpen; i++) {
+        const g = (state.markets.latam.volumeGrowth[Math.min(i, 4)] / 100) * mult;
+        vol = vol * (1 + g);
+      }
+      return (vol / 1000) * state.markets.latam.priceUSD;
+    })();
+
+    const usaRev = (() => {
+      if (!state.markets.usa.active || y < state.markets.usa.openYear) return 0;
+      const mult = state.scenarioMultipliers[state.scenario];
+      const yearsOpen = y - state.markets.usa.openYear;
+      let vol = 2000000;
+      for (let i = 1; i <= yearsOpen; i++) {
+        const g = (state.markets.usa.volumeGrowth[Math.min(i, 4)] / 100) * mult;
+        vol = vol * (1 + g);
+      }
+      return (vol / 1000) * state.markets.usa.priceUSD;
+    })();
+
+    return { year: y, Argentina: Math.round(argRev), LATAM: Math.round(latamRev), USA: Math.round(usaRev), Total: Math.round(argRev + latamRev + usaRev) };
+  });
+
+  // FX erosion data
+  const fxData = YEARS.map(y => {
+    const fxRate = state.arFX * Math.pow(1 + state.arFXDevaluation, y - 2025);
+    const revUSD = fin[y]?.revenue || 0;
+    const revARS = revUSD * 1000; // already in USD
+    return { year: y, 'USD Revenue': Math.round(revUSD), 'FX Rate (ARS/USD)': Math.round(fxRate) };
+  });
+
+  // Capital required per market
+  const marketCapital = [
+    { market: 'Argentina', capex: 8800 + 3520, wc: Math.round(calcWorkingCapital({ ...state }, 2026) + calcWorkingCapital({ ...state }, 2027)), total: 8800 + 3520 + 4200, status: 'active' },
+    { market: 'LATAM', capex: 5000, wc: 8000, total: 13000, status: state.markets.latam.active ? 'active' : 'inactive' },
+    { market: 'USA', capex: 12000, wc: 15000, total: 27000, status: state.markets.usa.active ? 'active' : 'inactive' },
+  ];
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Recommendation */}
+      <div className="border border-gold-border bg-gold-dim p-4">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Recomendación estratégica</p>
+        <p className="text-lg font-condensed font-bold text-gold">
+          {state.markets.argentina.active && !state.markets.latam.active && !state.markets.usa.active
+            ? `Enfocate en Argentina hasta lograr FCF positivo (~2028). Luego, con capital propio, abrí LATAM en ${state.markets.latam.openYear}.`
+            : state.markets.latam.active && !state.markets.usa.active
+            ? `Dual track: Argentina + LATAM desde ${state.markets.latam.openYear}. Necesitás $${(13000).toLocaleString()}K adicionales.`
+            : `Estrategia multi-mercado activa — monitoreá burn rate semanalmente.`}
+        </p>
+      </div>
+
+      {/* Market toggles */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { key: 'argentina', name: 'Argentina', flag: '🇦🇷', color: GOLD },
+          { key: 'latam', name: 'LATAM', flag: '🌎', color: BLUE },
+          { key: 'usa', name: 'USA', flag: '🇺🇸', color: GREEN },
+        ].map(({ key, name, flag, color }) => {
+          const mkt = state.markets[key];
+          return (
+            <div key={key} className={`border p-3 ${mkt.active ? 'border-gold bg-gold-dim' : 'border-white-20 bg-white-5'}`}>
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-condensed font-bold text-sm">{flag} {name}</span>
+                <button
+                  onClick={() => setState(s => ({
+                    ...s,
+                    markets: { ...s.markets, [key]: { ...s.markets[key], active: !s.markets[key].active } }
+                  }))}
+                  className={`text-xs px-2 py-0.5 font-condensed font-bold ${mkt.active ? 'bg-gold text-black' : 'bg-white-10 text-white-60'}`}
+                >
+                  {mkt.active ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              <div className="text-xs text-white-60 font-condensed">
+                <div className="flex justify-between">
+                  <span>Open year</span>
+                  <input
+                    type="number"
+                    value={mkt.openYear}
+                    min={2025} max={2032}
+                    onChange={e => setState(s => ({
+                      ...s,
+                      markets: { ...s.markets, [key]: { ...s.markets[key], openYear: parseInt(e.target.value) } }
+                    }))}
+                    className="bg-white-10 text-white text-right w-16 px-1 font-condensed"
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span>Price/unit</span>
+                  <span className="text-white">${mkt.priceUSD}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Revenue stacked bar */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue por mercado ($K USD)</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={marketData}>
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: MUTED, fontSize: 10, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <Bar dataKey="Argentina" stackId="a" fill={GOLD} />
+            <Bar dataKey="LATAM" stackId="a" fill={BLUE} />
+            <Bar dataKey="USA" stackId="a" fill={GREEN} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Capital required */}
+      <div className="grid grid-cols-3 gap-3">
+        {marketCapital.map(m => (
+          <div key={m.market} className={`border p-3 ${m.status === 'active' ? 'border-gold-border' : 'border-white-10'}`}>
+            <p className="text-xs font-condensed text-white-60 uppercase">{m.market}</p>
+            <p className="text-2xl font-condensed font-bold text-white">${(m.total / 1000).toFixed(1)}M</p>
+            <p className="text-xs text-white-60 font-condensed">Capex: ${(m.capex / 1000).toFixed(1)}M + WC: ${(m.wc / 1000).toFixed(1)}M</p>
+          </div>
+        ))}
+      </div>
+
+      {/* FX erosion */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-condensed uppercase text-gold tracking-wider">FX Erosion — devaluación ARS</p>
+        </div>
+        <Slider label="Devaluación anual ARS/USD" value={state.arFXDevaluation} min={0.05} max={1.20} step={0.01}
+          onChange={v => setState(s => ({ ...s, arFXDevaluation: v }))}
+          format={v => fmtPct(v)} />
+        <ResponsiveContainer width="100%" height={160}>
+          <LineChart data={fxData}>
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="usd" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
+            <YAxis yAxisId="fx" orientation="right" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v.toLocaleString('en')} />
+            <Tooltip content={<CustomTooltip />} />
+            <Line yAxisId="usd" dataKey="USD Revenue" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
+            <Line yAxisId="fx" dataKey="FX Rate (ARS/USD)" stroke={RED} strokeWidth={1} strokeDasharray="4 2" dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MODULE 2: FINANCING
+// ─────────────────────────────────────────────
+function Module2({ state, setState }) {
+  const fin = useMemo(() => buildFinancials(state), [state]);
+  const dcf = useMemo(() => calcDCF(state), [state]);
+
+  // Equity value trajectory
+  const equityData = YEARS.map(y => {
+    const annualEV = (() => {
+      const s = { ...state };
+      const revScale = fin[y]?.revenue / (fin[2030]?.revenue || 1);
+      return dcf.evPerpetual * Math.pow(revScale, 0.5) * (fin[2030]?.revenue > 0 ? 1 : 0.1);
+    })();
+    const founderPct = 1 - state.equityDilution;
+    return {
+      year: y,
+      'EV Total': Math.round(annualEV),
+      'Founder Value': Math.round(annualEV * founderPct),
+      'Investor Value': Math.round(annualEV * state.equityDilution),
+    };
+  });
+
+  // Debt service schedule
+  const debtData = FORECAST_YEARS.map(y => {
+    const ds = calcDebtService(state, y);
+    const ebitda = fin[y]?.ebitda || 0;
+    const icr = ds > 0 ? ebitda / ds : null;
+    return { year: y, 'Debt Service': Math.round(ds), EBITDA: Math.round(ebitda), ICR: icr };
+  });
+
+  const equityPath = state.financingMode === 'equity' || state.financingMode === 'mixed';
+  const debtPath = state.financingMode === 'debt' || state.financingMode === 'mixed';
+
+  // Cost comparison
+  const dilutionCost = dcf.evPerpetual * state.equityDilution;
+  const debtTotalCost = state.debtAmount * state.debtInterestRate * state.debtTermYears;
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Key output */}
+      <div className="border border-gold-border bg-gold-dim p-4">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-2">Conclusión: ¿deuda o equity?</p>
+        <p className="text-base font-condensed font-bold text-gold">
+          Deuda cuesta <span className="text-white">${(debtTotalCost/1000).toFixed(0)}K</span> total en intereses ·
+          Dilución cuesta <span className="text-white">{fmtPct(state.equityDilution)}</span> de EV ({fmt(dilutionCost * 1000)})
+        </p>
+        <p className="text-sm font-condensed text-white-60 mt-1">
+          {dilutionCost > debtTotalCost
+            ? '→ Si confías en el modelo, la deuda preserva más upside para los founders.'
+            : '→ La dilución es más barata que los intereses proyectados — considerá equity.'}
+        </p>
+      </div>
+
+      {/* Mode selector */}
+      <div className="flex gap-2">
+        {['equity', 'debt', 'mixed'].map(mode => (
+          <button key={mode}
+            onClick={() => setState(s => ({ ...s, financingMode: mode }))}
+            className={`px-4 py-2 font-condensed font-bold text-sm uppercase tracking-wider ${state.financingMode === mode ? 'bg-gold text-black' : 'border border-white-20 text-white-60'}`}>
+            {mode === 'equity' ? 'Solo Equity' : mode === 'debt' ? 'Solo Deuda' : 'Mixto'}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Equity inputs */}
+        {equityPath && (
+          <div className="border border-white-10 bg-white-5 p-4">
+            <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Equity</p>
+            <Slider label="Capital levantado ($K)" value={state.capitalNeeded} min={500} max={20000} step={100}
+              onChange={v => setState(s => ({ ...s, capitalNeeded: v }))}
+              format={v => `$${v.toLocaleString('en')}K`} />
+            <Slider label="Dilución %" value={state.equityDilution} min={0.01} max={0.50} step={0.005}
+              onChange={v => setState(s => ({ ...s, equityDilution: v }))}
+              format={v => fmtPct(v)} />
+            <Slider label="Valuación pre-money ($K)" value={state.currentEquityValue} min={5000} max={200000} step={1000}
+              onChange={v => setState(s => ({ ...s, currentEquityValue: v }))}
+              format={v => `$${(v/1000).toFixed(1)}M`} />
+            <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-condensed">
+              <div className="bg-white-5 p-2">
+                <p className="text-white-60">Pre-money EV</p>
+                <p className="text-xl font-bold text-white">${(state.currentEquityValue/1000).toFixed(1)}M</p>
+              </div>
+              <div className="bg-white-5 p-2">
+                <p className="text-white-60">Post-money EV</p>
+                <p className="text-xl font-bold text-gold">${((state.currentEquityValue + state.capitalNeeded)/1000).toFixed(1)}M</p>
+              </div>
+              <div className="bg-white-5 p-2">
+                <p className="text-white-60">Founder retains</p>
+                <p className="text-xl font-bold text-green-400">{fmtPct(1 - state.equityDilution)}</p>
+              </div>
+              <div className="bg-white-5 p-2">
+                <p className="text-white-60">Founder EV @ exit</p>
+                <p className="text-xl font-bold text-white">{fmt(dcf.evPerpetual * (1 - state.equityDilution) * 1000)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Debt inputs */}
+        {debtPath && (
+          <div className="border border-white-10 bg-white-5 p-4">
+            <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Deuda</p>
+            <Slider label="Monto deuda ($K)" value={state.debtAmount} min={0} max={10000} step={100}
+              onChange={v => setState(s => ({ ...s, debtAmount: v }))}
+              format={v => `$${v.toLocaleString('en')}K`} />
+            <Slider label="Tasa de interés" value={state.debtInterestRate} min={0.05} max={0.60} step={0.01}
+              onChange={v => setState(s => ({ ...s, debtInterestRate: v }))}
+              format={v => fmtPct(v)} />
+            <Slider label="Plazo (años)" value={state.debtTermYears} min={1} max={7} step={1}
+              onChange={v => setState(s => ({ ...s, debtTermYears: v }))}
+              format={v => `${v}y`} />
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={debtData}>
+                <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}K`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="Debt Service" fill={RED} fillOpacity={0.7} />
+                <Bar dataKey="EBITDA" fill={GOLD} fillOpacity={0.3} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Equity value chart */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Valor equity founders vs inversores ($K)</p>
+        <ResponsiveContainer width="100%" height={180}>
+          <AreaChart data={equityData}>
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
+            <Tooltip content={<CustomTooltip />} />
+            <Area type="monotone" dataKey="Founder Value" stackId="1" stroke={GOLD} fill={GOLD} fillOpacity={0.2} />
+            <Area type="monotone" dataKey="Investor Value" stackId="1" stroke={PURPLE} fill={PURPLE} fillOpacity={0.2} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MODULE 3: CHANNEL MARGIN
+// ─────────────────────────────────────────────
+function Module3({ state, setState }) {
+  const channelMargins = useMemo(() => calcChannelMargins(state), [state]);
+  const blended = useMemo(() => calcBlendedMargin(channelMargins), [channelMargins]);
+
+  const [shiftFrom, setShiftFrom] = useState('wholesale');
+  const [shiftTo, setShiftTo] = useState('rappi');
+  const [shiftPct, setShiftPct] = useState(0.05);
+
+  const shiftedChannels = useMemo(() => {
+    const chs = { ...state.channels };
+    const from = { ...chs[shiftFrom] };
+    const to = { ...chs[shiftTo] };
+    from.share = Math.max(0, from.share - shiftPct);
+    to.share = Math.min(1, to.share + shiftPct);
+    return { ...chs, [shiftFrom]: from, [shiftTo]: to };
+  }, [state.channels, shiftFrom, shiftTo, shiftPct]);
+
+  const shiftedMargins = useMemo(() => calcChannelMargins({ ...state, channels: shiftedChannels }), [state, shiftedChannels]);
+  const shiftedBlended = useMemo(() => calcBlendedMargin(shiftedMargins), [shiftedMargins]);
+  const marginDelta = shiftedBlended - blended;
+
+  const chartData = Object.entries(channelMargins)
+    .map(([key, ch]) => ({
+      channel: ch.label || key,
+      'Gross Margin %': Math.round(ch.grossMarginPct * 100 * 10) / 10,
+      'Contrib/Unit ($)': Math.round(ch.contribPerUnit * 100) / 100,
+      share: ch.share,
+    }))
+    .sort((a, b) => b['Gross Margin %'] - a['Gross Margin %']);
+
+  const bestChannel = chartData[0];
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Key output */}
+      <div className="border border-gold-border bg-gold-dim p-4">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Conclusión del canal</p>
+        <p className="text-base font-condensed font-bold text-gold">
+          Mejor margen: <span className="text-white">{bestChannel?.channel}</span> con{' '}
+          <span className="text-white">{bestChannel?.['Gross Margin %'].toFixed(1)}%</span> de margen bruto.
+          Blended actual: <span className="text-white">{fmtPct(blended)}</span>
+        </p>
+        <p className="text-sm font-condensed text-white-60 mt-1">
+          {`Mover 10% de ${Object.values(channelMargins).sort((a,b) => a.grossMarginPct - b.grossMarginPct)[0]?.label} → ${bestChannel?.channel} agrega ~${fmtPct(Math.abs(chartData[0]?.['Gross Margin %']/100 - Object.values(channelMargins).sort((a,b) => a.grossMarginPct - b.grossMarginPct)[0]?.grossMarginPct) * 0.1)} al margen blended.`}
+        </p>
+      </div>
+
+      {/* Editable channel table */}
+      <div className="border border-white-10 bg-white-5 p-4 overflow-x-auto">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Canales — editá cualquier celda</p>
+        <table className="w-full text-xs font-condensed">
+          <thead>
+            <tr>
+              {['Canal', 'Share %', 'Precio/u', 'COGS/u', 'Fee dist.', 'Margen bruto', 'Contrib/u'].map(h => (
+                <th key={h} className="text-right first:text-left text-white-60 font-normal pb-2 px-1">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(state.channels).map(([key, ch]) => {
+              const cm = channelMargins[key];
+              return (
+                <tr key={key} className="border-t border-white-10">
+                  <td className="py-1.5 px-1 font-bold text-white">{ch.label || key}</td>
+                  <td className="text-right py-1.5 px-1">
+                    <input type="number" step="0.01" min="0" max="1" value={ch.share}
+                      onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], share: parseFloat(e.target.value) || 0 } } }))}
+                      className="bg-white-10 text-white w-14 text-right px-1" />
+                  </td>
+                  <td className="text-right py-1.5 px-1">
+                    <input type="number" step="0.01" min="0" value={ch.priceUSD}
+                      onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], priceUSD: parseFloat(e.target.value) || 0 } } }))}
+                      className="bg-white-10 text-white w-14 text-right px-1" />
+                  </td>
+                  <td className="text-right py-1.5 px-1">
+                    <input type="number" step="0.01" min="0" value={ch.cogsUSD}
+                      onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], cogsUSD: parseFloat(e.target.value) || 0 } } }))}
+                      className="bg-white-10 text-white w-14 text-right px-1" />
+                  </td>
+                  <td className="text-right py-1.5 px-1">
+                    <input type="number" step="0.01" min="0" max="0.99" value={ch.distribFee}
+                      onChange={e => setState(s => ({ ...s, channels: { ...s.channels, [key]: { ...s.channels[key], distribFee: parseFloat(e.target.value) || 0 } } }))}
+                      className="bg-white-10 text-white w-14 text-right px-1" />
+                  </td>
+                  <td className={`text-right py-1.5 px-1 font-bold ${cm.grossMarginPct > 0.3 ? 'text-green-400' : cm.grossMarginPct > 0.1 ? 'text-gold' : 'text-red-400'}`}>
+                    {fmtPct(cm.grossMarginPct)}
+                  </td>
+                  <td className={`text-right py-1.5 px-1 ${cm.contribPerUnit > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ${cm.contribPerUnit.toFixed(3)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white-20">
+          <span className="text-xs font-condensed text-white-60">Margen blended</span>
+          <span className="text-xl font-condensed font-bold text-gold">{fmtPct(blended)}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Margin chart */}
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Margen bruto por canal</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} layout="vertical">
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: MUTED, fontSize: 10 }} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="channel" tick={{ fill: '#fff', fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} width={80} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="Gross Margin %" radius={0}>
+                {chartData.map((entry, index) => (
+                  <Cell key={index} fill={index === 0 ? GOLD : index === 1 ? BLUE : index === 2 ? GREEN : PURPLE} fillOpacity={0.7} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Shift simulator */}
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Simulador de mix — "peso marginal"</p>
+          <div className="space-y-3 text-xs font-condensed">
+            <div className="flex gap-2 items-center">
+              <span className="text-white-60 w-12">From</span>
+              <select value={shiftFrom} onChange={e => setShiftFrom(e.target.value)}
+                className="bg-white-10 text-white px-2 py-1 flex-1">
+                {Object.entries(state.channels).map(([k, ch]) => <option key={k} value={k}>{ch.label}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-2 items-center">
+              <span className="text-white-60 w-12">To</span>
+              <select value={shiftTo} onChange={e => setShiftTo(e.target.value)}
+                className="bg-white-10 text-white px-2 py-1 flex-1">
+                {Object.entries(state.channels).map(([k, ch]) => <option key={k} value={k}>{ch.label}</option>)}
+              </select>
+            </div>
+            <Slider label="Share a mover" value={shiftPct} min={0.01} max={0.20} step={0.01}
+              onChange={setShiftPct} format={v => fmtPct(v)} />
+            <div className="border border-white-20 p-3 mt-2">
+              <div className="flex justify-between mb-1">
+                <span className="text-white-60">Margen blended actual</span>
+                <span className="text-white font-bold">{fmtPct(blended)}</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span className="text-white-60">Margen blended nuevo</span>
+                <span className="text-white font-bold">{fmtPct(shiftedBlended)}</span>
+              </div>
+              <div className="flex justify-between border-t border-white-20 pt-1 mt-1">
+                <span className="text-white-60">Delta</span>
+                <span className={`font-bold text-lg ${marginDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {marginDelta >= 0 ? '+' : ''}{fmtPct(marginDelta, 2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MODULE 4: MACRO STRESS TEST
+// ─────────────────────────────────────────────
+function Module4({ state, setState }) {
+  const PRESETS = {
+    estabilidad: { arInflation: 0.30, arFXDevaluation: 0.15, latamInflation: 0.05, usInflation: 0.025 },
+    moderada:    { arInflation: 0.55, arFXDevaluation: 0.40, latamInflation: 0.10, usInflation: 0.04 },
+    crisis:      { arInflation: 1.00, arFXDevaluation: 0.80, latamInflation: 0.20, usInflation: 0.06 },
+  };
+
+  const applyPreset = (preset) => setState(s => ({ ...s, ...PRESETS[preset] }));
+
+  const macroData = YEARS.map(y => {
+    const fxRate = state.arFX * Math.pow(1 + state.arFXDevaluation, y - 2025);
+    const baseState = { ...state, arFXDevaluation: 0.15 };
+    const crisisState = { ...state, arFXDevaluation: 0.80 };
+    const baseRev = calcRevenue(baseState, y);
+    const currentRev = calcRevenue(state, y);
+    const crisisRev = calcRevenue(crisisState, y);
+    const ebitda = calcEBITDA(state, y);
+    const ebitdaMargin = currentRev > 0 ? ebitda / currentRev : 0;
+    return {
+      year: y,
+      'Rev (Base FX)': Math.round(baseRev),
+      'Rev (Current FX)': Math.round(currentRev),
+      'Rev (Crisis FX)': Math.round(crisisRev),
+      'EBITDA %': Math.round(ebitdaMargin * 100 * 10) / 10,
+    };
+  });
+
+  const revenueImpact = (() => {
+    const crisisState = { ...state, arFXDevaluation: 0.80 };
+    const baseRev2030 = calcRevenue(state, 2030);
+    const crisisRev2030 = calcRevenue(crisisState, 2030);
+    return baseRev2030 - crisisRev2030;
+  })();
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Presets */}
+      <div className="flex gap-3">
+        {[
+          { key: 'estabilidad', label: 'Estabilidad', desc: '30% inf · 15% dev' },
+          { key: 'moderada', label: 'Dev. Moderada', desc: '55% inf · 40% dev' },
+          { key: 'crisis', label: 'Crisis Cambiaria', desc: '100% inf · 80% dev' },
+        ].map(({ key, label, desc }) => (
+          <button key={key}
+            onClick={() => applyPreset(key)}
+            className="flex-1 border border-white-20 bg-white-5 p-3 text-left hover:border-gold-border transition-colors">
+            <p className="font-condensed font-bold text-sm text-white">{label}</p>
+            <p className="font-condensed text-xs text-white-60 mt-0.5">{desc}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Key output */}
+      <div className="border border-gold-border bg-gold-dim p-4">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-widest mb-1">Impacto de crisis cambiaria</p>
+        <p className="text-base font-condensed font-bold text-gold">
+          Bajo crisis (80% dev.), revenue 2030 cae{' '}
+          <span className="text-red-400">${(revenueImpact / 1000).toFixed(0)}M</span> vs base.
+          Necesitás ese monto en USD adicionales para mantener operaciones.
+        </p>
+      </div>
+
+      {/* Sliders */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Variables macro Argentina</p>
+          <Slider label="Inflación ARS anual" value={state.arInflation} min={0.10} max={2.00} step={0.01}
+            onChange={v => setState(s => ({ ...s, arInflation: v }))} format={v => fmtPct(v)} />
+          <Slider label="Devaluación ARS/USD anual" value={state.arFXDevaluation} min={0.05} max={1.50} step={0.01}
+            onChange={v => setState(s => ({ ...s, arFXDevaluation: v }))} format={v => fmtPct(v)} />
+          <Slider label="Tipo de cambio actual (ARS/USD)" value={state.arFX} min={500} max={5000} step={50}
+            onChange={v => setState(s => ({ ...s, arFX: v }))} format={v => v.toLocaleString('en')} />
+        </div>
+        <div className="border border-white-10 bg-white-5 p-4">
+          <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Variables macro globales</p>
+          <Slider label="Inflación LATAM" value={state.latamInflation} min={0.03} max={0.30} step={0.005}
+            onChange={v => setState(s => ({ ...s, latamInflation: v }))} format={v => fmtPct(v)} />
+          <Slider label="Inflación USD" value={state.usInflation} min={0.01} max={0.15} step={0.005}
+            onChange={v => setState(s => ({ ...s, usInflation: v }))} format={v => fmtPct(v)} />
+
+          {/* Current macro snapshot */}
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-condensed">
+            {[
+              { label: 'FX 2026', value: `${(state.arFX * (1 + state.arFXDevaluation)).toLocaleString('en', {maximumFractionDigits: 0})} ARS` },
+              { label: 'FX 2028', value: `${(state.arFX * Math.pow(1 + state.arFXDevaluation, 3)).toLocaleString('en', {maximumFractionDigits: 0})} ARS` },
+              { label: 'FX 2030', value: `${(state.arFX * Math.pow(1 + state.arFXDevaluation, 5)).toLocaleString('en', {maximumFractionDigits: 0})} ARS` },
+              { label: 'COGS impact', value: fmtPct(state.arInflation * 0.6) + ' adj' },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white-5 p-2">
+                <p className="text-white-60">{label}</p>
+                <p className="text-white font-bold">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Revenue comparison chart */}
+      <div className="border border-white-10 bg-white-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider">Revenue USD bajo distintos escenarios FX</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={macroData}>
+            <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="year" tick={{ fill: MUTED, fontSize: 11, fontFamily: 'Barlow Condensed' }} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="rev" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}M`} />
+            <YAxis yAxisId="margin" orientation="right" tick={{ fill: MUTED, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[-50, 20]} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Barlow Condensed', color: MUTED }} />
+            <Line yAxisId="rev" dataKey="Rev (Base FX)" stroke={GREEN} strokeWidth={2} strokeDasharray="4 2" dot={false} />
+            <Line yAxisId="rev" dataKey="Rev (Current FX)" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD, r: 3 }} />
+            <Line yAxisId="rev" dataKey="Rev (Crisis FX)" stroke={RED} strokeWidth={2} strokeDasharray="2 2" dot={false} />
+            <Line yAxisId="margin" dataKey="EBITDA %" stroke={CYAN} strokeWidth={1} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// GLOBAL CONTROLS (top bar)
+// ─────────────────────────────────────────────
+function GlobalControls({ state, setState }) {
+  const fin = useMemo(() => buildFinancials(state), [state]);
+  const dcf = useMemo(() => calcDCF(state), [state]);
+
+  return (
+    <div className="flex items-center gap-4 px-4 py-2 border-b border-white-10 flex-wrap">
+      {/* Scenario */}
+      <div className="flex gap-1">
+        {['best', 'base', 'worst'].map(sc => (
+          <button key={sc}
+            onClick={() => setState(s => ({ ...s, scenario: sc }))}
+            className={`px-3 py-1 text-xs font-condensed font-bold uppercase tracking-wider ${state.scenario === sc ? 'bg-gold text-black' : 'border border-white-20 text-white-60'}`}>
+            {sc === 'best' ? 'Best' : sc === 'base' ? 'Base' : 'Worst'}
+          </button>
+        ))}
+      </div>
+      {/* Quick stats */}
+      <div className="flex gap-4 ml-auto text-xs font-condensed">
+        <span className="text-white-60">Rev 2030: <span className="text-gold font-bold">{fmt(fin[2030]?.revenue * 1000)}</span></span>
+        <span className="text-white-60">EBITDA 2030: <span className={fin[2030]?.ebitda >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>{fmt(fin[2030]?.ebitda * 1000)}</span></span>
+        <span className="text-white-60">EV: <span className="text-gold font-bold">{fmt(dcf.evPerpetual * 1000)}</span></span>
+        <span className="text-white-60">WACC: <span className="text-white font-bold">{fmtPct(state.wacc)}</span></span>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// MAIN APP
+// ─────────────────────────────────────────────
+const TABS = [
+  { id: 'markets',   label: '01 — Mercados',     question: '¿Qué mercado abro y cuándo?' },
+  { id: 'financing', label: '02 — Financiamiento', question: '¿Deuda o equity?' },
+  { id: 'channels',  label: '03 — Canales',        question: '¿Dónde meto el próximo peso?' },
+  { id: 'macro',     label: '04 — Macro',          question: '¿Cómo me afecta la macro?' },
+  { id: 'dcf',       label: '05 — Valuación',      question: '¿Cuánto vale (Sh!) hoy?' },
+];
+
+function App() {
+  const [state, setState] = useState(INITIAL_STATE);
+  const [activeTab, setActiveTab] = useState('dcf');
+
+  const activeTabData = TABS.find(t => t.id === activeTab);
+
+  return (
+    <div className="min-h-screen bg-black text-white" style={{ fontFamily: 'Barlow, sans-serif' }}>
+      {/* Header */}
+      <div className="border-b border-white-10 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-condensed font-black tracking-tight text-gold">(Sh!)</span>
+          <span className="text-xs font-condensed text-white-60 uppercase tracking-widest">Strategic Decision Tool — Founders Only</span>
+        </div>
+        <span className="text-xs font-condensed text-white-20 uppercase tracking-widest hidden md:block">CONFIDENCIAL · DO NOT DISTRIBUTE</span>
+      </div>
+
+      {/* Global Controls */}
+      <GlobalControls state={state} setState={setState} />
+
+      {/* Tabs */}
+      <div className="flex border-b border-white-10 overflow-x-auto">
+        {TABS.map(tab => (
+          <button key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-3 text-xs font-condensed font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : 'text-white-60 hover:text-white'}`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Active question */}
+      <div className="px-4 py-2 bg-white-5 border-b border-white-10">
+        <p className="text-xs font-condensed text-white-60 uppercase tracking-wider">
+          Pregunta: <span className="text-white">{activeTabData?.question}</span>
+        </p>
+      </div>
+
+      {/* Module content */}
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 130px)' }}>
+        {activeTab === 'markets'   && <Module1 state={state} setState={setState} />}
+        {activeTab === 'financing' && <Module2 state={state} setState={setState} />}
+        {activeTab === 'channels'  && <Module3 state={state} setState={setState} />}
+        {activeTab === 'macro'     && <Module4 state={state} setState={setState} />}
+        {activeTab === 'dcf'       && <Module5 state={state} setState={setState} />}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
