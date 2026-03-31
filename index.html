@@ -1969,6 +1969,91 @@ function Module6({ state, setState }) {
         </div>
       </div>
 
+      {/* ¿Por qué tanto capital? — Waterfall de FCF */}
+      <div className="border border-ash bg-ink-5 p-4">
+        <p className="text-xs font-condensed uppercase text-gold mb-1 tracking-wider">¿Por qué necesito tanto capital? — Descomposición del FCF</p>
+        <p className="text-xs font-condensed text-ink-40 mb-4">
+          Cada año que crece el revenue, necesitás poner más plata en inventario y en crédito a clientes.
+          Eso es el ΔCapital de Trabajo: plata real que sale de caja antes de que entre un peso de ganancia.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-condensed">
+            <thead>
+              <tr className="border-b border-ash">
+                <th className="text-left text-ink-40 py-2 pr-4 font-normal w-52">Driver de caja</th>
+                {FORECAST_YEARS.map(y => (
+                  <th key={y} className="text-right text-ink-40 py-2 px-2 font-normal">{y}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-ash">
+                <td className="py-1.5 pr-4 text-ink-60">EBITDA operativo</td>
+                {FORECAST_YEARS.map(y => {
+                  const v = fin[y]?.ebitda || 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-1.5 ${v >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {v < 0 ? `(${fmt(Math.abs(v)*1000)})` : fmt(v*1000)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="border-b border-ash">
+                <td className="py-1.5 pr-4 text-ink-60">
+                  ΔCapital de trabajo
+                  <span className="block text-ink-30 text-[10px]">AR + Inventario − Proveedores</span>
+                </td>
+                {FORECAST_YEARS.map(y => {
+                  const dWC = fin[y]?.deltaWC || 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-1.5 ${dWC > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                      {dWC > 0 ? `(${fmt(dWC*1000)})` : dWC < 0 ? `+${fmt(Math.abs(dWC)*1000)}` : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="border-b border-ash">
+                <td className="py-1.5 pr-4 text-ink-60">Capex</td>
+                {FORECAST_YEARS.map(y => {
+                  const c = fin[y]?.capex || 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-1.5 ${c > 0 ? 'text-red-600' : 'text-ink-30'}`}>
+                      {c > 0 ? `(${fmt(c*1000)})` : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="border-t-2 border-ink-20 bg-white">
+                <td className="py-2 pr-4 font-bold text-ink">= FCF del año</td>
+                {FORECAST_YEARS.map(y => {
+                  const v = fin[y]?.fcf ?? 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-2 font-bold ${v >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {v < 0 ? `(${fmt(Math.abs(v)*1000)})` : fmt(v*1000)}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="bg-gold-dim">
+                <td className="py-2 pr-4 font-bold text-gold">Caja acumulada</td>
+                {FORECAST_YEARS.map(y => {
+                  const v = cashData.find(d => d.year === y)?.['Caja Acumulada'] ?? 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-2 font-bold ${v >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {v < 0 ? `(${fmt(Math.abs(v)*1000)})` : fmt(v*1000)}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 pt-3 border-t border-ash text-xs font-condensed text-ink-40 space-y-1">
+          <p>🔴 <strong className="text-ink-60">ΔCapital de trabajo</strong> = la plata que inmovilizás cada año en inventario y crédito a clientes por crecer. A más revenue, más grande el pozo antes de que el negocio sea autosuficiente.</p>
+          <p>💡 Bajá DSO (cobrar antes) o subí DPO (pagar después) para reducir la necesidad sin levantar equity ni deuda. Tocá los sliders abajo.</p>
+        </div>
+      </div>
+
       {/* The three levers */}
       <div className="border border-ash bg-ink-5 p-4">
         <p className="text-xs font-condensed uppercase text-gold mb-4 tracking-wider">Las 3 palancas de caja — tocá y ves el impacto instantáneo</p>
@@ -2020,7 +2105,11 @@ function Module6({ state, setState }) {
         <div className="mb-3">
           <p className="text-xs font-condensed uppercase text-gold tracking-wider">Posición de caja acumulada</p>
           <div className="flex gap-5 mt-1.5 text-xs font-condensed text-ink-60">
-            <span><span className="inline-block w-3 h-3 mr-1.5 align-middle" style={{ background: BLUE, opacity: 0.7 }}></span><strong className="text-ink">Barras — FCF Anual:</strong> cuánta plata generás (verde) o quemás (rojo) en ese año específico.</span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 align-middle" style={{ background: GREEN, opacity: 0.85 }}></span>
+              <span className="inline-block w-3 h-3 align-middle" style={{ background: RED, opacity: 0.85 }}></span>
+              <strong className="text-ink">Barras — FCF Anual:</strong> verde = generás caja, rojo = quemás caja ese año.
+            </span>
             <span><span className="inline-block w-3 h-1.5 mr-1.5 align-middle" style={{ background: GOLD }}></span><strong className="text-ink">Línea — Caja Acumulada:</strong> tu posición total desde el arranque. Si cae debajo de $0, ese es el dinero que necesitás levantar.</span>
           </div>
           <p className="text-xs font-condensed text-ink-40 mt-1">
@@ -2035,7 +2124,11 @@ function Module6({ state, setState }) {
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
             <ReferenceLine y={0} stroke={RED} strokeDasharray="4 2" strokeWidth={1.5} />
-            <Bar dataKey="FCF Anual" fill={BLUE} fillOpacity={0.6} />
+            <Bar dataKey="FCF Anual" fillOpacity={0.85}>
+              {cashData.map((d, i) => (
+                <Cell key={i} fill={d['FCF Anual'] >= 0 ? GREEN : RED} fillOpacity={0.85} />
+              ))}
+            </Bar>
             <Line dataKey="Caja Acumulada" stroke={GOLD} strokeWidth={2.5} dot={{ fill: GOLD, r: 4 }} />
           </ComposedChart>
         </ResponsiveContainer>
@@ -2308,9 +2401,9 @@ function ModulePL({ state, setState }) {
 
               {/* COGS */}
               <tr className="border-b border-ash">
-                <td className="py-1 pr-3 text-red-600">COGS</td>
+                <td className="py-1 pr-3 text-ink-60">COGS</td>
                 {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-red-600">({fmt((fin[y]?.cogs||0)*1000)})</td>
+                  <td key={y} className="text-right px-2 py-1 text-ink-60">({fmt((fin[y]?.cogs||0)*1000)})</td>
                 ))}
               </tr>
 
@@ -2322,7 +2415,7 @@ function ModulePL({ state, setState }) {
                   const gp = fin[y]?.grossProfit || 0;
                   const pct = rev > 0 ? (gp/rev*100).toFixed(0) : 0;
                   return (
-                    <td key={y} className="text-right px-2 py-1.5 font-bold text-emerald-700">
+                    <td key={y} className={`text-right px-2 py-1.5 font-bold ${gp >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                       {fmt(gp*1000)}
                       <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
                     </td>
@@ -2332,9 +2425,9 @@ function ModulePL({ state, setState }) {
 
               {/* OpEx — lump sum (2025A real, 2026+ total proyectado) */}
               <tr className="border-b border-ash">
-                <td className="py-1 pr-3 text-red-600 font-medium">OpEx</td>
+                <td className="py-1 pr-3 text-ink-60 font-medium">OpEx</td>
                 {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-red-600">
+                  <td key={y} className="text-right px-2 py-1 text-ink-60">
                     ({fmt((y === 2025 ? ACTUALS_2025.sga : fin[y]?.sga || 0) * 1000)})
                   </td>
                 ))}
@@ -2459,14 +2552,15 @@ const TABS = [
   { id: 'pl',        label: '02 — P&L',                question: '¿Cuál es mi estructura de costos y rentabilidad?' },
   { id: 'caja',      label: '03 — Caja',               question: '¿Me alcanza la plata? ¿Cuánto capital necesito?' },
   { id: 'financing', label: '04 — Financiamiento',     question: '¿Deuda o equity — y qué me cuesta?' },
-  { id: 'channels',  label: '05 — Canales',            question: '¿Dónde meto el próximo peso?' },
-  { id: 'macro',     label: '06 — Macro',              question: '¿Cómo me afecta la macro?' },
-  { id: 'dcf',       label: '07 — Valuación',          question: '¿Cuánto vale (Sh!) hoy?' },
+  { id: 'dcf',       label: '05 — Valuación',          question: '¿Cuánto vale (Sh!) hoy?' },
+  { id: 'channels',  label: 'Canales',                  question: '¿Dónde meto el próximo peso?',        appendix: true },
+  { id: 'macro',     label: 'Macro',                    question: '¿Cómo me afecta la macro?',           appendix: true },
 ];
 
 function App() {
   const [state, setState] = useState(INITIAL_STATE);
   const [activeTab, setActiveTab] = useState('markets');
+  const [showAppendix, setShowAppendix] = useState(false);
 
   const activeTabData = TABS.find(t => t.id === activeTab);
 
@@ -2488,11 +2582,24 @@ function App() {
       <GlobalControls state={state} setState={setState} />
 
       {/* Tabs */}
-      <div className="flex border-b border-ash overflow-x-auto">
-        {TABS.map(tab => (
+      <div className="flex border-b border-ash overflow-x-auto items-stretch">
+        {TABS.filter(t => !t.appendix).map(tab => (
           <button key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-3 text-xs font-condensed font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : 'text-ink-60 hover:text-ink'}`}>
+            {tab.label}
+          </button>
+        ))}
+        <div className="w-px bg-ash mx-1 self-stretch" />
+        <button
+          onClick={() => setShowAppendix(s => !s)}
+          className={`px-3 py-3 text-xs font-condensed uppercase tracking-wider whitespace-nowrap text-ink-30 hover:text-ink-60 flex items-center gap-1`}>
+          Apéndice {showAppendix ? '▲' : '▼'}
+        </button>
+        {showAppendix && TABS.filter(t => t.appendix).map(tab => (
+          <button key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-3 text-xs font-condensed font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === tab.id ? 'tab-active' : 'text-ink-40 hover:text-ink'}`}>
             {tab.label}
           </button>
         ))}
