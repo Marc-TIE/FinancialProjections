@@ -663,12 +663,20 @@ function Module5({ state, setState }) {
                 Revenue 2030 <span className="text-gold font-bold">{fmt(rev2030 * 1000)}</span> × múltiplo elegido
               </p>
               <p className="text-3xl font-condensed font-bold text-ink mb-1">{fmt(evRevMult * 1000)}</p>
-              <p className="text-xs text-ink-40 font-condensed">{state.revenueMultiple}x Revenue · típico SaaS 3–8x, CPG 1–3x</p>
-              <div className="mt-3">
-                <Slider label="EV / Revenue múltiplo" value={state.revenueMultiple} min={0.5} max={10} step={0.5}
-                  onChange={v => setState(s => ({ ...s, revenueMultiple: v }))}
-                  format={v => `${v.toFixed(1)}x`} />
+              <div className="flex items-center gap-2 mt-3 mb-2">
+                <label className="text-xs font-condensed text-ink-60 w-28 shrink-0">EV / Revenue</label>
+                <input
+                  type="number" min={0.5} max={20} step={0.5}
+                  value={state.revenueMultiple}
+                  onChange={e => setState(s => ({ ...s, revenueMultiple: Math.max(0.5, parseFloat(e.target.value)||0) }))}
+                  className="w-20 text-center font-condensed font-bold text-gold text-sm border border-gold/40 bg-white px-2 py-1 focus:outline-none focus:border-gold"
+                  style={{ borderRadius: 0 }}
+                />
+                <span className="text-xs font-condensed text-ink-60">x Revenue 2030</span>
               </div>
+              <input type="range" min={0.5} max={20} step={0.5} value={state.revenueMultiple}
+                onChange={e => setState(s => ({ ...s, revenueMultiple: parseFloat(e.target.value) }))}
+                className="w-full accent-yellow-500" />
               <div className="mt-2 pt-2 border-t border-ash text-xs font-condensed text-ink-30 space-y-0.5">
                 <p>0.5–1x → commodity / bajo margen</p>
                 <p>2–4x → CPG / bebidas premium</p>
@@ -685,14 +693,23 @@ function Module5({ state, setState }) {
               {evEBMult !== null ? (
                 <p className="text-3xl font-condensed font-bold text-ink mb-1">{fmt(evEBMult * 1000)}</p>
               ) : (
-                <p className="text-3xl font-condensed font-bold text-red-600 mb-1">EBITDA negativo</p>
+                <p className="text-3xl font-condensed font-bold text-ink mb-1">—</p>
               )}
-              <p className="text-xs text-ink-40 font-condensed">{state.terminalEBITDAMultiple}x EBITDA · típico CPG 8–15x</p>
-              <div className="mt-3">
-                <Slider label="EV / EBITDA múltiplo" value={state.terminalEBITDAMultiple} min={4} max={30} step={0.5}
-                  onChange={v => setState(s => ({ ...s, terminalEBITDAMultiple: v }))}
-                  format={v => `${v}x`} />
+              {evEBMult === null && <p className="text-xs text-ink-40 font-condensed mb-1">EBITDA negativo en 2030 → múltiplo no aplica</p>}
+              <div className="flex items-center gap-2 mt-3 mb-2">
+                <label className="text-xs font-condensed text-ink-60 w-28 shrink-0">EV / EBITDA</label>
+                <input
+                  type="number" min={1} max={50} step={0.5}
+                  value={state.terminalEBITDAMultiple}
+                  onChange={e => setState(s => ({ ...s, terminalEBITDAMultiple: Math.max(1, parseFloat(e.target.value)||0) }))}
+                  className="w-20 text-center font-condensed font-bold text-gold text-sm border border-gold/40 bg-white px-2 py-1 focus:outline-none focus:border-gold"
+                  style={{ borderRadius: 0 }}
+                />
+                <span className="text-xs font-condensed text-ink-60">x EBITDA 2030</span>
               </div>
+              <input type="range" min={1} max={50} step={0.5} value={state.terminalEBITDAMultiple}
+                onChange={e => setState(s => ({ ...s, terminalEBITDAMultiple: parseFloat(e.target.value) }))}
+                className="w-full accent-yellow-500" />
               <div className="mt-2 pt-2 border-t border-ash text-xs font-condensed text-ink-30 space-y-0.5">
                 <p>4–8x → empresa madura / bajo crecimiento</p>
                 <p>8–15x → CPG / consumo masivo</p>
@@ -2007,9 +2024,77 @@ function Module6({ state, setState }) {
         </div>
       </div>
 
+      {/* Decomposición de por qué necesito capital */}
+      {(() => {
+        const ebitdaBurn = FORECAST_YEARS.reduce((s,y) => s + Math.min(0, fin[y]?.ebitda||0), 0);
+        const wcGrowth   = FORECAST_YEARS.reduce((s,y) => s + Math.max(0, fin[y]?.deltaWC||0), 0);
+        const totalNeed  = capitalGap;
+        return (
+          <div className="border border-gold/40 bg-gold/5 p-4">
+            <p className="text-xs font-condensed uppercase text-gold mb-3 tracking-wider font-bold">¿Por qué necesito capital? — Las 2 causas</p>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {/* Causa 1 */}
+              <div className="bg-white border border-ash p-3">
+                <p className="text-[10px] font-condensed uppercase text-ink-40 tracking-wider mb-1">① Pérdida operativa</p>
+                <p className="text-2xl font-condensed font-bold text-red-600">({fmt(Math.abs(ebitdaBurn)*1000)})</p>
+                <p className="text-[10px] font-condensed text-ink-40 mt-1">Suma de EBITDA negativo 2026–2030. El negocio todavía invierte más de lo que gana.</p>
+                <div className="mt-2 pt-2 border-t border-ash">
+                  <p className="text-[10px] font-condensed text-ink-60">💡 Palanca: subir precio o bajar OpEx</p>
+                </div>
+              </div>
+              {/* Causa 2 */}
+              <div className="bg-white border border-ash p-3">
+                <p className="text-[10px] font-condensed uppercase text-ink-40 tracking-wider mb-1">② Inversión en capital de trabajo</p>
+                <p className="text-2xl font-condensed font-bold text-red-600">({fmt(wcGrowth*1000)})</p>
+                <p className="text-[10px] font-condensed text-ink-40 mt-1">
+                  Plata inmovilizada en stock + crédito a clientes cada año que crece el volumen.
+                  Ciclo actual: <strong className="text-ink">{ccc} días</strong> (DSO {state.daysAR} + DIO {state.daysInventory} − DPO {state.daysAP}).
+                </p>
+                <div className="mt-2 pt-2 border-t border-ash">
+                  <p className="text-[10px] font-condensed text-ink-60">💡 Palanca: bajar DIO (stock), subir DPO (pagar después)</p>
+                </div>
+              </div>
+              {/* Total con buffer */}
+              <div className="bg-white border border-gold p-3">
+                <p className="text-[10px] font-condensed uppercase text-gold tracking-wider mb-1">Capital total necesario (con buffer)</p>
+                <p className={`text-2xl font-condensed font-bold ${totalNeed > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                  {totalNeed > 0 ? `(${fmt(totalNeed*1000)})` : fmt(totalNeed*1000)}
+                </p>
+                <p className="text-[10px] font-condensed text-ink-40 mt-1">
+                  Piso de caja acumulada × 1.2 de buffer. Año crítico: {needYear}.
+                </p>
+                <div className="mt-2 pt-2 border-t border-ash text-[10px] font-condensed text-ink-40 space-y-0.5">
+                  <p>Burn op.: {fmt(Math.abs(ebitdaBurn)*1000)}</p>
+                  <p>WC growth: {fmt(wcGrowth*1000)}</p>
+                </div>
+              </div>
+            </div>
+            {/* Sensitivity levers — quick impact table */}
+            <div className="bg-white border border-ash p-3">
+              <p className="text-[10px] font-condensed uppercase text-ink-60 tracking-wider mb-2">¿Qué palanca reduce más la necesidad?</p>
+              <div className="grid grid-cols-3 gap-3 text-[10px] font-condensed">
+                {[
+                  { label: 'Bajar DIO de '+state.daysInventory+'d → 60d', impact: (() => { const saved = (state.daysInventory > 60) ? FORECAST_YEARS.reduce((s,y) => { const cogs = fin[y]?.cogs||0; return s + (cogs/365)*(state.daysInventory-60); }, 0) : 0; return Math.round(saved); })() },
+                  { label: 'Subir DPO de '+state.daysAP+'d → 60d',       impact: (() => { const saved = (state.daysAP < 60) ? FORECAST_YEARS.reduce((s,y) => { const cogs = fin[y]?.cogs||0; return s + (cogs/365)*(60-state.daysAP); }, 0) : 0; return Math.round(saved); })() },
+                  { label: 'Bajar DSO de '+state.daysAR+'d → 20d',       impact: (() => { const saved = (state.daysAR > 20) ? FORECAST_YEARS.reduce((s,y) => { const rev = fin[y]?.revenue||0; return s + (rev/365)*(state.daysAR-20); }, 0) : 0; return Math.round(saved); })() },
+                ].map(({ label, impact }) => (
+                  <div key={label} className={`p-2 border ${impact > 0 ? 'border-emerald-300 bg-emerald-50' : 'border-ash bg-ink-5'}`}>
+                    <p className="text-ink-60 mb-1">{label}</p>
+                    <p className={`text-base font-bold ${impact > 0 ? 'text-emerald-700' : 'text-ink-40'}`}>
+                      {impact > 0 ? `+${fmt(impact*1000)}` : 'Ya optimizado'}
+                    </p>
+                    <p className="text-ink-30">{impact > 0 ? 'menos capital necesario' : ''}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ¿Por qué tanto capital? — Waterfall de FCF */}
       <div className="border border-ash bg-ink-5 p-4">
-        <p className="text-xs font-condensed uppercase text-gold mb-1 tracking-wider">¿Por qué necesito tanto capital? — Descomposición del FCF</p>
+        <p className="text-xs font-condensed uppercase text-gold mb-1 tracking-wider">Waterfall de FCF — año por año</p>
         <p className="text-xs font-condensed text-ink-40 mb-4">
           Cada año que crece el revenue, necesitás poner más plata en inventario y en crédito a clientes.
           Eso es el ΔCapital de Trabajo: plata real que sale de caja antes de que entre un peso de ganancia.
@@ -2195,9 +2280,9 @@ function Module6({ state, setState }) {
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, Helvetica Neue, sans-serif', color: MUTED }} />
             <ReferenceLine y={0} stroke={RED} strokeDasharray="4 2" strokeWidth={1.5} />
-            <Bar dataKey="FCF Anual" fillOpacity={0.85}>
-              {cashData.map((d, i) => (
-                <Cell key={i} fill={d['FCF Anual'] >= 0 ? GREEN : RED} fillOpacity={0.85} />
+            <Bar dataKey="FCF Anual" fill={RED} isAnimationActive={false}>
+              {cashData.map((entry, index) => (
+                <Cell key={`fcf-bar-${index}`} fill={entry['FCF Anual'] >= 0 ? GREEN : RED} fillOpacity={0.85} />
               ))}
             </Bar>
             <Line dataKey="Caja Acumulada" stroke={GOLD} strokeWidth={2.5} dot={{ fill: GOLD, r: 4 }} />
@@ -2435,7 +2520,7 @@ function ModulePL({ state, setState }) {
             <span className="text-xs font-condensed uppercase tracking-wider text-ink-40">P&L Consolidado</span>
             <span className="inline-flex items-center gap-1 bg-gold/10 border border-gold/30 text-gold text-[10px] font-condensed px-2 py-0.5 rounded-sm">
               <span className="font-bold">2025A</span>
-              <span className="text-ink-40">= Balance auditado · EECC Legalizados</span>
+              <span className="text-ink-40">Real auditado</span>
             </span>
           </div>
           <table className="w-full text-xs font-condensed">
@@ -2504,21 +2589,6 @@ function ModulePL({ state, setState }) {
                 ))}
               </tr>
 
-              {/* OpEx breakdown — solo años proyectados, 2025 = — */}
-              {state.expenseLines.map(line => (
-                <tr key={line.id} className="border-b border-ash">
-                  <td className="py-1 pr-3 flex items-center gap-1.5 pl-3">
-                    <span className="w-1.5 h-1.5 inline-block flex-shrink-0" style={{ background: line.color }} />
-                    <span className="text-ink-40">{line.label}</span>
-                    <span className="text-ink-20">({(line.pct*100).toFixed(1)}%)</span>
-                  </td>
-                  {YEARS.map(y => (
-                    <td key={y} className="text-right px-2 py-1 text-ink-30">
-                      {y === 2025 ? <span className="text-ink-20">—</span> : `(${fmt((fin[y]?.revenue||0) * line.pct * 1000)})`}
-                    </td>
-                  ))}
-                </tr>
-              ))}
 
               {/* EBITDA */}
               <tr className="border-b border-ink-20 bg-ink-5">
@@ -2536,54 +2606,6 @@ function ModulePL({ state, setState }) {
                 })}
               </tr>
 
-              {/* D&A */}
-              <tr className="border-b border-ash">
-                <td className="py-1 pr-3 text-ink-40">D&A</td>
-                {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-ink-40">
-                    {y > 2025 ? `(${fmt((fin[y]?.depreciation||0)*1000)})` : '—'}
-                  </td>
-                ))}
-              </tr>
-
-              {/* EBIT */}
-              <tr className="border-b border-ash">
-                <td className="py-1 pr-3 text-ink-60">EBIT</td>
-                {YEARS.map(y => {
-                  const ebit = fin[y]?.ebit || 0;
-                  return (
-                    <td key={y} className={`text-right px-2 py-1 ${ebit >= 0 ? 'text-ink' : 'text-red-600'}`}>
-                      {ebit < 0 ? `(${fmt(Math.abs(ebit)*1000)})` : fmt(ebit*1000)}
-                    </td>
-                  );
-                })}
-              </tr>
-
-              {/* Tax */}
-              <tr className="border-b border-ash">
-                <td className="py-1 pr-3 text-ink-40">Impuestos ({(state.taxRate*100).toFixed(0)}%)</td>
-                {YEARS.map(y => (
-                  <td key={y} className="text-right px-2 py-1 text-ink-40">
-                    {fin[y]?.tax > 0 ? `(${fmt(fin[y].tax*1000)})` : '—'}
-                  </td>
-                ))}
-              </tr>
-
-              {/* Net Income */}
-              <tr className="bg-ink-5">
-                <td className="py-2 pr-3 font-bold text-ink uppercase">Net Income</td>
-                {YEARS.map(y => {
-                  const ni = (fin[y]?.ebit || 0) - (fin[y]?.tax || 0);
-                  const rev = fin[y]?.revenue || 0;
-                  const pct = rev > 0 ? (ni/rev*100).toFixed(0) : 0;
-                  return (
-                    <td key={y} className={`text-right px-2 py-2 font-bold ${ni >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                      {ni < 0 ? `(${fmt(Math.abs(ni)*1000)})` : fmt(ni*1000)}
-                      <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
-                    </td>
-                  );
-                })}
-              </tr>
             </tbody>
           </table>
         </div>
