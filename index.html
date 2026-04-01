@@ -206,10 +206,10 @@ const INITIAL_STATE = {
   // Líneas de gasto operativo — cada una como % de revenue neto
   // El founder define cada línea. Se suman para calcular OpEx total y EBITDA.
   expenseLines: [
-    { id: 'marketing',  label: 'Marketing & Ventas',        pct: 0.12, color: '#F7AF1C' },
-    { id: 'logistics',  label: 'Logística & Distribución',  pct: 0.07, color: '#60a5fa' },
-    { id: 'people',     label: 'Equipo (Payroll)',           pct: 0.10, color: '#a78bfa' },
-    { id: 'ga',         label: 'G&A / Admin',               pct: 0.05, color: '#34d399' },
+    { id: 'marketing',  label: 'Marketing & Ventas',        pct: 0.08, color: '#F7AF1C' },
+    { id: 'logistics',  label: 'Logística & Distribución',  pct: 0.03, color: '#60a5fa' },
+    { id: 'people',     label: 'Equipo (Payroll)',           pct: 0.06, color: '#a78bfa' },
+    { id: 'ga',         label: 'G&A / Admin',               pct: 0.03, color: '#34d399' },
     { id: 'rnd',        label: 'I+D / Innovación',          pct: 0.02, color: '#f97316' },
   ],
   channels: {
@@ -2590,6 +2590,24 @@ function ModulePL({ state, setState }) {
               </tr>
 
 
+              {/* OpEx breakdown — 2025 muestra "—" (globo real), 2026+ por línea */}
+              {state.expenseLines.map(line => (
+                <tr key={line.id} className="border-b border-ash">
+                  <td className="py-1 pr-3 pl-3 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 inline-block flex-shrink-0 rounded-sm" style={{ background: line.color }} />
+                    <span className="text-ink-40">{line.label}</span>
+                    <span className="text-ink-20 text-[10px]">({(line.pct*100).toFixed(1)}%)</span>
+                  </td>
+                  {YEARS.map(y => (
+                    <td key={y} className="text-right px-2 py-1 text-ink-30">
+                      {y === 2025
+                        ? <span className="text-ink-20">—</span>
+                        : `(${fmt((fin[y]?.revenue||0) * line.pct * 1000)})`}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+
               {/* EBITDA */}
               <tr className="border-b border-ink-20 bg-ink-5">
                 <td className="py-1.5 pr-3 font-bold text-ink">EBITDA</td>
@@ -2600,6 +2618,55 @@ function ModulePL({ state, setState }) {
                   return (
                     <td key={y} className={`text-right px-2 py-1.5 font-bold ${ebitda >= 0 ? 'text-gold' : 'text-red-600'}`}>
                       {ebitda < 0 ? `(${fmt(Math.abs(ebitda)*1000)})` : fmt(ebitda*1000)}
+                      <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* D&A */}
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-ink-40">D&A</td>
+                {YEARS.map(y => (
+                  <td key={y} className="text-right px-2 py-1 text-ink-40">
+                    {y > 2025 && (fin[y]?.depreciation||0) > 0 ? `(${fmt((fin[y].depreciation)*1000)})` : '—'}
+                  </td>
+                ))}
+              </tr>
+
+              {/* EBIT */}
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-ink-60">EBIT</td>
+                {YEARS.map(y => {
+                  const ebit = fin[y]?.ebit || 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-1 ${ebit >= 0 ? 'text-ink-60' : 'text-red-600'}`}>
+                      {ebit < 0 ? `(${fmt(Math.abs(ebit)*1000)})` : fmt(ebit*1000)}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* Tax */}
+              <tr className="border-b border-ash">
+                <td className="py-1 pr-3 text-ink-40">Impuestos ({(state.taxRate*100).toFixed(0)}%)</td>
+                {YEARS.map(y => (
+                  <td key={y} className="text-right px-2 py-1 text-ink-40">
+                    {(fin[y]?.tax||0) > 0 ? `(${fmt(fin[y].tax*1000)})` : '—'}
+                  </td>
+                ))}
+              </tr>
+
+              {/* Net Income */}
+              <tr className="bg-ink-5">
+                <td className="py-2 pr-3 font-bold text-ink uppercase">Net Income</td>
+                {YEARS.map(y => {
+                  const ni = (fin[y]?.ebit || 0) - (fin[y]?.tax || 0);
+                  const rev = fin[y]?.revenue || 0;
+                  const pct = rev > 0 ? (ni/rev*100).toFixed(0) : 0;
+                  return (
+                    <td key={y} className={`text-right px-2 py-2 font-bold ${ni >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {ni < 0 ? `(${fmt(Math.abs(ni)*1000)})` : fmt(ni*1000)}
                       <span className="text-ink-40 font-normal ml-1 text-xs">{pct}%</span>
                     </td>
                   );
