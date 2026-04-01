@@ -2547,6 +2547,35 @@ function ModulePL({ state, setState }) {
                 </tr>
               ))}
 
+              {/* P × Q — Unidades y precio promedio */}
+              <tr className="border-b border-ash bg-ink-5">
+                <td className="py-1 pr-3 pl-2 text-ink-40 font-medium">
+                  Unidades vendidas
+                  <span className="block text-[10px] text-ink-20 font-normal">latas totales</span>
+                </td>
+                {YEARS.map(y => {
+                  const units = y === 2025
+                    ? calcVolume(state, 2025)
+                    : calcVolume(state, y);
+                  const M = units / 1e6;
+                  const K = units / 1e3;
+                  const label = M >= 1 ? `${M.toFixed(1)}M` : K >= 1 ? `${K.toFixed(0)}K` : units.toFixed(0);
+                  return <td key={y} className="text-right px-2 py-1 text-ink-60">{label}</td>;
+                })}
+              </tr>
+              <tr className="border-b border-ink-20 bg-ink-5">
+                <td className="py-1 pr-3 pl-2 text-ink-40 font-medium">
+                  Precio prom. (USD/lata)
+                  <span className="block text-[10px] text-ink-20 font-normal">revenue ÷ unidades</span>
+                </td>
+                {YEARS.map(y => {
+                  const rev = (fin[y]?.revenue || 0) * 1000; // USD
+                  const units = calcVolume(state, y);
+                  const p = units > 0 ? rev / units : 0;
+                  return <td key={y} className="text-right px-2 py-1 text-ink-60">{p > 0 ? `$${p.toFixed(2)}` : '—'}</td>;
+                })}
+              </tr>
+
               {/* Total Revenue */}
               <tr className="border-b border-ink-20 bg-ink-5">
                 <td className="py-1.5 pr-3 font-bold text-ink uppercase">Revenue Total</td>
