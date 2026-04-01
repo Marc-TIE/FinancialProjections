@@ -105,7 +105,7 @@ const PRODUCT_TYPES = [
 
 // País → datos de mercado por defecto (TAM en millones de unidades/año)
 const COUNTRIES = [
-  { code: 'AR', name: 'Argentina',    flag: '🇦🇷', color: '#F7AF1C', tamM: 500,  price: 1.10, cogs: 0.68, cagr: 0.09 },
+  { code: 'AR', name: 'Argentina',    flag: '🇦🇷', color: '#F7AF1C', tamM: 250,  price: 0.88, cogs: 0.57, cagr: 0.08 },
   { code: 'BR', name: 'Brasil',       flag: '🇧🇷', color: '#22c55e', tamM: 3000, price: 1.30, cogs: 0.72, cagr: 0.11 },
   { code: 'MX', name: 'México',       flag: '🇲🇽', color: '#ef4444', tamM: 1500, price: 1.20, cogs: 0.70, cagr: 0.09 },
   { code: 'CL', name: 'Chile',        flag: '🇨🇱', color: '#60a5fa', tamM: 250,  price: 1.40, cogs: 0.72, cagr: 0.08 },
@@ -192,13 +192,13 @@ const INITIAL_STATE = {
       // TAM en valor → convertido a unidades por precio promedio de mercado
       tamUSD: 500,          // $500M USD (valor total del mercado)
       canFormat: '355ml',   // formato de lata
-      tamAvgPrice: 1.00,    // precio promedio del mercado (no el tuyo) → para la conversión
-      tamUnits: 500000000,  // derivado: tamUSD * 1M / tamAvgPrice
-      marketCAGR: 0.09,     // 9% crecimiento anual del mercado
-      penetration: [0.18, 2.21, 10.98, 30.06, 58.60, 80.14],
-      priceUSD: 1.10, cogsUSD: 0.68,
-      fxRate: 1200,          // ARS por USD — editable por mercado
-      fxDevaluation: 0.30,   // devaluación anual proyectada
+      tamAvgPrice: 2.00,    // precio promedio de mercado → conversión: 500M / $2 = 250M latas
+      tamUnits: 250000000,  // 250M latas
+      marketCAGR: 0.08,     // 8% crecimiento anual del mercado
+      penetration: [0.21, 2.5, 5.5, 8.5, 12.0, 16.0],
+      priceUSD: 0.88, cogsUSD: 0.57,
+      fxRate: 1400,          // ARS por USD
+      fxDevaluation: 0.24,   // 24% devaluación anual proyectada
       inputCurrency: 'USD',  // 'USD' | 'local'
     },
   },
